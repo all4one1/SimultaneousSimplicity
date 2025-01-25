@@ -361,9 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/SimultaneousSimplicity.vcxproj
-/SimultaneousSimplicity.vcxproj.filters
-/SimultaneousSimplicity.sln
+
 
 *.dat
 *.txt
