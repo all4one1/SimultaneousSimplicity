@@ -396,6 +396,8 @@ void init_parameters(Configuration &c)
 	par.reading<unsigned int>(c.ny, "ny", 20);
 	par.reading<double>(c.Ra, "Ra", 5000);
 	par.reading<double>(c.Pr, "Pr", 10);
+	par.reading<double>(c.Le, "Le", 130);
+	par.reading<double>(c.K, "K", 0);
 	par.reading<double>(c.tau, "tau", 0.0001);
 
 	par.reading<double>(c.grav_y, "grav_y", 1.0);
@@ -552,7 +554,7 @@ void deleteFilesInDirectory(const std::wstring& directoryPath) {
 
 
 
-double signedsum(double* f, unsigned int N)
+double sum_signed(double* f, unsigned int N)
 {
 	double s = 0;
 
@@ -560,6 +562,16 @@ double signedsum(double* f, unsigned int N)
 		s += f[i];
 	return s;
 }
+
+double sum_abs(double* f, unsigned int N)
+{
+	double s = 0;
+
+	for (unsigned int i = 0; i < N; i++)
+		s += abs(f[i]);
+	return s;
+}
+
 double signedmax(double* f, unsigned int N)
 {
 	double m = f[0];
@@ -592,3 +604,40 @@ double absmax(double *f, unsigned int N)
 	return m;
 }
 
+
+void transform_to_velocity(Configuration &c, double *ksi, double *vx, double *vy)
+{
+	for (unsigned int j = 0; j <= c.ny; j++) {
+		for (unsigned int i = 0; i <= c.nx; i++) {
+			unsigned int l = i + c.offset * j;
+			if (j == 0 || j == c.ny)
+			{
+				vx[l] = vy[l] = 0;
+				continue;
+			}
+
+			if (i == 0 || i == c.nx) 
+			{
+				vx[l] = vy[l] = 0;
+				continue;
+			}
+
+			vx[l] = (ksi[l + c.offset] - ksi[l - c.offset]) / (2.0 * c.hy);
+			vy[l] = -(ksi[l + 1] - ksi[l - 1]) / (2.0 * c.hx);
+		}
+	}
+}
+
+
+void make_full(Configuration &c, double* full, double* add)
+{
+	for (unsigned int j = 0; j <= c.ny; j++) {
+		for (unsigned int i = 0; i <= c.nx; i++)
+		{
+			int l = i + c.offset * j;
+			double x = i * c.hx;
+			double y = j * c.hy;
+			full[l] = -c.grav_x * x - c.grav_y * y + add[l];
+		}
+	}
+};

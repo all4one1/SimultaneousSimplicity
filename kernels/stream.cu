@@ -46,28 +46,52 @@ __global__ void swap_two(double* f_old, double* f_new, double* f2_old, double* f
 	}	
 }
 
+__global__ void swap_three(double* f_old, double* f_new, double* f2_old, double* f2_new, double* f3_old, double* f3_new)
+{
+	unsigned int l = blockIdx.x * blockDim.x + threadIdx.x;
+	if (l < dev.N)
+	{
+		f_old[l] = f_new[l];
+		f2_old[l] = f2_new[l];
+		f3_old[l] = f3_new[l];
+	}
+}
+
+
+
+
 
 namespace stream
 {
+	#define VX_ dy1(l, ksi)
+	#define VY_ -dx1(l, ksi)
 	__global__ void vorticity(double* omega_new, double* omega, double* ksi, double* T, double* C)
 	{
 		unsigned int i = threadIdx.x + blockIdx.x * blockDim.x;
 		unsigned int j = threadIdx.y + blockIdx.y * blockDim.y;
 		unsigned int l = i + dev.offset * j;
 
+		auto InnerComputng = [&](unsigned int l)
+		{
+			return omega[l] + dev.tau * (
+				(dx1(l, ksi) * dy1(l, omega) - dy1(l, ksi) * dx1(l, omega)) //nonlinear term
+				+ (dx2(l, omega) + dy2(l, omega)) * dev.Pr
+
+				+ dev.grav_y * dev.Ra * dev.Pr * (dx1(l, T) - dev.density_x) 
+				- dev.grav_x * dev.Ra * dev.Pr * (dy1(l, T) - dev.density_y)
+
+				+ dev.grav_y * dev.Ra * dev.Pr * dev.K * (dx1(l, C) - dev.density_x)
+				- dev.grav_x * dev.Ra * dev.Pr * dev.K * (dy1(l, C) - dev.density_y)
+				);            
+		};
+
+
 		if (i <= dev.nx && j <= dev.ny && l < dev.N)
 		{
 			/*	INNER	*/
 			if (i > 0 && i < dev.nx && j > 0 && j < dev.ny)
 			{
-				omega_new[l] = omega[l] +
-					dev.tau * (
-						(dx1(l, ksi) * dy1(l, omega) - dy1(l, ksi) * dx1(l, omega)) //nonlinear term
-						+ (dx2(l, omega) + dy2(l, omega))
-
-						+ dev.Ra / dev.Pr * (dx1(l, T) + dev.K * (dx1(l, C))) * dev.grav_y
-						- dev.Ra / dev.Pr * (dy1(l, T) + dev.K * (dy1(l, T))) * dev.grav_x
-						);
+				omega_new[l] = InnerComputng(l);
 			}
 			else
 			{
@@ -94,28 +118,14 @@ namespace stream
 				{
 					if (i == 0 && (j > 0 && j < dev.ny))
 					{
-						int ll = dev.nx - 1 + dev.offset * j;
-						omega_new[l] = omega[ll] +
-							dev.tau * (
-								(dx1(ll, ksi) * dy1(ll, omega) - dy1(ll, ksi) * dx1(ll, omega))
-								+ (dx2(ll, omega) + dy2(ll, omega)) 
-
-								+ dev.Ra / dev.Pr * (dx1(l, T) + dev.K * (dx1(l, C))) * dev.grav_y
-								- dev.Ra / dev.Pr * (dy1(l, T) + dev.K * (dy1(l, T))) * dev.grav_x
-								);
+						unsigned int ll = dev.nx - 1 + dev.offset * j;
+						omega_new[l] = InnerComputng(ll);
 						return;
 					}
 					if (i == dev.nx && (j > 0 && j < dev.ny))
 					{
-						int ll = 1 + dev.offset * j;
-						omega_new[l] = omega[ll] +
-							dev.tau * (
-								(dx1(ll, ksi) * dy1(ll, omega) - dy1(ll, ksi) * dx1(ll, omega))
-								+ (dx2(ll, omega) + dy2(ll, omega)) 
-
-								+ dev.Ra / dev.Pr * (dx1(l, T) + dev.K * (dx1(l, C))) * dev.grav_y
-								- dev.Ra / dev.Pr * (dy1(l, T) + dev.K * (dy1(l, T))) * dev.grav_x
-								);
+						unsigned int ll = 1 + dev.offset * j;
+						omega_new[l] = InnerComputng(ll);
 						return;
 					}
 				}
@@ -196,7 +206,7 @@ namespace stream
 		unsigned int j = threadIdx.y + blockIdx.y * blockDim.y;
 		unsigned int l = i + dev.offset * j;
 
-		double tau = 0.02 * dev.hx * dev.hy;
+		double tau = 0.2 * dev.hx * dev.hy;
 
 		if (i <= dev.nx && j <= dev.ny && l < dev.N)
 		{
@@ -252,6 +262,11 @@ namespace stream
 
 	}
 
+	__global__ void disturb(unsigned int i, unsigned int j, double* f, double value)
+	{
+		f[i + dev.offset * j] = value;
+	}
+
 	__global__ void temperature_2d(double* T, double* T0, double* ksi)
 	{
 		unsigned int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -266,7 +281,9 @@ namespace stream
 				T[l] = T0[l]
 					+ dev.tau * (
 						- dy1(l, ksi) * dx1(l, T0) + dx1(l, ksi) * dy1(l, T0)
-						+ (dx2(l, T0) + dy2(l, T0)) / dev.Pr
+						+ (VX_ * dev.density_x + VY_ * dev.density_y)
+
+						+ (dx2(l, T0) + dy2(l, T0)) /*/ dev.Pr*/
 						);
 				return;
 			}
@@ -275,7 +292,7 @@ namespace stream
 			{
 				if (j == 0)
 				{
-					T[l] = 1.0;
+					T[l] = 0.0;
 					return;
 				}
 				else if (j == dev.ny)
@@ -334,6 +351,8 @@ namespace stream
 				C[l] = C0[l]
 					+ dev.tau * (
 						-dy1(l, ksi) * dx1(l, C0) + dx1(l, ksi) * dy1(l, C0)
+						+ (VX_ * dev.density_x + VY_ * dev.density_y)
+
 						+ (dx2(l, C0) + dy2(l, C0)) / dev.Le
 						);
 				return;
@@ -343,12 +362,12 @@ namespace stream
 			{
 				if (j == 0)
 				{
-					C[l] = 1.0;
+					C[l] = dy1_eq_0_up(l, C0);
 					return;
 				}
 				else if (j == dev.ny)
 				{
-					C[l] = 0.0;
+					C[l] = dy1_eq_0_down(l, C0);
 					return;
 				}
 

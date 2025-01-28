@@ -42,10 +42,15 @@ struct PhysicalValues
 	double Ek, Vmax, AM, AMx, AMy, AMz;
 };
 
+struct StatValues 
+{
+	double ksi_max = 0, ksi_sum = 0, omega_max = 0, omega_sum = 0, C_sum = 0, C_sum_signed = 0;
+};
+
 
 struct Arrays
 {
-	double* p, * p0, * ux, * uy, * uz, * vx, * vy, * vz, * buffer;
+	double* p, * p0, * ux, * uy, * uz, * vx, * vy, * vz, * buffer, *buffer2;
 	double* T, * T0, * C, * C0, * C2, * C20, * C3, * C30, * mu, * mu0;
 	double* omega, * omega0, * ksi, * ksi0;
 	double* src_x, * src_y, * src_z;
