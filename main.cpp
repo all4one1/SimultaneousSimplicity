@@ -27,6 +27,7 @@ struct RUN_STATE
 	double timeq = 0, time_sec = 0;
 	size_t iter = 0;
 	bool every(int n) { return iter % n == 0; }
+	bool every_time(double tau, double t) {int tt = (int)(round(1.0 / tau) * t); return iter % (tt) == 0;}
 	void reset()
 	{
 		timeq = 0;
@@ -53,7 +54,7 @@ int main(int argc, char** argv)
 	FuncTimer ftimer;
 	PhysicalValues phys;
 	StatValues stat;
-
+	Backup backup;
 
 	std::ofstream w_final, w_temporal;
 
@@ -140,9 +141,9 @@ reset:
 
 
 		// output
-
-		unsigned int freq = 10000;
-		if (run.every(freq) || run.iter == 1)
+		unsigned int freq = 1;
+		//if (run.every(freq) || run.iter == 1)
+		if (run.every_time(host.tau, freq) || run.iter == 1)
 		{
 			cudaMemcpy(hostptr.T, devptr.T, host.Nbytes, cudaMemcpyDeviceToHost);
 			cudaMemcpy(hostptr.C, devptr.C, host.Nbytes, cudaMemcpyDeviceToHost);
@@ -181,11 +182,17 @@ reset:
 				if (check_ksi.ready_to_exit) run.stop_signal = 1;
 			}
 
-			if (run.every(freq / 10))
+			if (run.every_time(host.tau, freq * 10))
 			{
 				write_fields2d(run.iter, host,
 					{ hostptr.ksi, hostptr.T, hostptr.C, hostptr.buffer, hostptr.buffer2, hostptr.vx, hostptr.vy },
 					"ksi, T, C, Tfull, Cfull, vx, vy");
+			}
+			if (run.every_time(host.tau, freq * 50))
+			{
+				backup.save(run.iter, run.timeq, host,
+					{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C }, 
+					"ksi, omega, T, C");
 			}
 		}
 

@@ -627,8 +627,6 @@ void transform_to_velocity(Configuration &c, double *ksi, double *vx, double *vy
 		}
 	}
 }
-
-
 void make_full(Configuration &c, double* full, double* add)
 {
 	for (unsigned int j = 0; j <= c.ny; j++) {
@@ -640,4 +638,96 @@ void make_full(Configuration &c, double* full, double* add)
 			full[l] = -c.grav_x * x - c.grav_y * y + add[l];
 		}
 	}
+};
+
+
+struct Backup
+{
+	std::string backup_name[2];
+	bool second_backup;
+	Backup(std::string name = "recovery", bool second = false)
+	{
+		backup_name[0] = name + ".txt";
+		backup_name[1] = name + "2.txt";
+		second_backup = second;
+	}
+
+	void save(size_t iter, double time, Configuration& c, std::vector<double*> v = {}, std::string head = "")
+	{
+		stringstream ss, ss2; string str;
+		ss.str(""); ss.clear();
+		//ss << setprecision(15);
+		ss << iter * c.tau;
+
+
+		std::ofstream write(backup_name[0]);
+		write << "x, y, " + head << endl;
+		write << "iter,time,Ra= " << iter << " " << time << " " << c.Ra << endl;
+		//all << setprecision(16) << fixed;
+		for (unsigned int j = 0; j <= c.ny; j++) {
+			for (unsigned int i = 0; i <= c.nx; i++) {
+				unsigned int l = i + c.offset * j;
+				write << i * c.hx << " " << j * c.hy << " ";
+				for (auto& it : v)
+				{
+					write << it[l] << " ";
+				}
+				write << endl;
+			}
+		}
+
+		if (second_backup)
+		{
+			std::ofstream write(backup_name[1]);
+			write << "x, y, " + head << endl;
+			write << "iter,time,Ra= " << iter << " " << time << " " << c.Ra << endl;
+			//all << setprecision(16) << fixed;
+			for (unsigned int j = 0; j <= c.ny; j++) {
+				for (unsigned int i = 0; i <= c.nx; i++) {
+					unsigned int l = i + c.offset * j;
+					write << i * c.hx << " " << j * c.hy << " ";
+					for (auto& it : v)
+					{
+						write << it[l] << " ";
+					}
+					write << endl;
+				}
+			}
+		}
+	};
+
+	void read(size_t &iter, double &time, Configuration& c, std::vector<double*> v = {}, std::string head = "")
+	{
+		string str;
+		string substr;
+		stringstream ss;
+
+		std::ifstream read(backup_name[0]);
+
+		getline(read, str); //skip header
+		getline(read, str); //read iter, time, Ra
+		ss << str; 
+		ss >> substr; ss >> substr; iter = atoi(substr.c_str());
+		ss >> substr; ss >> substr; time = atof(substr.c_str());
+		ss >> substr; ss >> substr; c.Ra = atof(substr.c_str());
+
+		for (unsigned int j = 0; j <= c.ny; j++) {
+			for (unsigned int i = 0; i <= c.nx; i++) {
+				unsigned int l = i + c.offset * j;
+
+				ss.str(""); 
+				ss.clear(); 
+				getline(read, str); 
+				ss << str;
+
+				ss >> substr; ss >> substr;  //skip reading x,y
+				for (auto& it : v)
+				{
+					ss >> substr;
+					it[l] = atof(substr.c_str());
+				}
+			}
+		}
+	}
+
 };
