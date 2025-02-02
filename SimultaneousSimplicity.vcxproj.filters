@@ -36,5 +36,8 @@
     <ClInclude Include="Extras.h" />
     <ClInclude Include="ExtrasCuda.h" />
     <ClInclude Include="types_project.h" />
+    <ClInclude Include="cpu_stream.h">
+      <Filter>kernels</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

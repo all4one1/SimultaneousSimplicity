@@ -75,13 +75,13 @@ namespace stream
 		{
 			return omega[l] + dev.tau * (
 				(dx1(l, ksi) * dy1(l, omega) - dy1(l, ksi) * dx1(l, omega)) //nonlinear term
-				+ (dx2(l, omega) + dy2(l, omega)) * dev.Pr
+				+ (dx2(l, omega) + dy2(l, omega)) /** dev.Pr*/
 
-				+ dev.grav_y * dev.Ra * dev.Pr * (dx1(l, T) - dev.density_x) 
-				- dev.grav_x * dev.Ra * dev.Pr * (dy1(l, T) - dev.density_y)
+				+ dev.grav_y * dev.Ra / dev.Pr * (dx1(l, T) - dev.density_x) 
+				- dev.grav_x * dev.Ra / dev.Pr * (dy1(l, T) - dev.density_y)
 
-				+ dev.grav_y * dev.Ra * dev.Pr * dev.K * (dx1(l, C) - dev.density_x)
-				- dev.grav_x * dev.Ra * dev.Pr * dev.K * (dy1(l, C) - dev.density_y)
+				+ dev.grav_y * dev.Ra / dev.Pr * dev.K * (dx1(l, C) - dev.density_x)
+				- dev.grav_x * dev.Ra / dev.Pr * dev.K * (dy1(l, C) - dev.density_y)
 				);            
 		};
 
@@ -283,7 +283,7 @@ namespace stream
 						- dy1(l, ksi) * dx1(l, T0) + dx1(l, ksi) * dy1(l, T0)
 						+ (VX_ * dev.density_x + VY_ * dev.density_y)
 
-						+ (dx2(l, T0) + dy2(l, T0)) /*/ dev.Pr*/
+						+ (dx2(l, T0) + dy2(l, T0)) / dev.Pr
 						);
 				return;
 			}
@@ -353,7 +353,7 @@ namespace stream
 						-dy1(l, ksi) * dx1(l, C0) + dx1(l, ksi) * dy1(l, C0)
 						+ (VX_ * dev.density_x + VY_ * dev.density_y)
 
-						+ (dx2(l, C0) + dy2(l, C0)) / dev.Le
+						+ (dx2(l, C0) + dy2(l, C0)) / (dev.Le * dev.Pr)
 						);
 				return;
 			}
@@ -406,5 +406,5 @@ namespace stream
 			}
 		}
 	}
-
 }
+

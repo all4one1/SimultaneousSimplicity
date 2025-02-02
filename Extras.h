@@ -3,6 +3,7 @@
 #include <string>
 #include <windows.h>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <fstream>
 #include <algorithm>
@@ -157,6 +158,28 @@ public:
 		Log << parameter_name << "= " << var << endl;
 		#endif // LoggingON
 	}
+
+	bool reading_string(string parameter_name) {
+		stat = 0;
+		transform(parameter_name.begin(), parameter_name.end(), parameter_name.begin(), ::tolower);
+		iss.clear();
+		iss.seekg(0);
+
+		while (getline(iss, str))
+		{
+			//substr.clear();
+			ss.str("");	ss.clear();	ss << str;	ss >> substr;
+			transform(substr.begin(), substr.end(), substr.begin(), ::tolower);
+			if (substr == parameter_name) 
+			{
+				return true;
+			}
+		}
+		#ifdef LoggingON
+		Log << parameter_name << "= " << var << endl;
+		#endif // LoggingON
+		return false;
+	}
 };
 
 struct FuncTimer
@@ -285,7 +308,7 @@ struct Checker
 	double relative = 1, absolute = 1;
 	double dif = 1, dif_rel = 1, dif2 = 0, dif_rel2 = 0;
 	double deriv = 0, deriv2 = 0;
-	size_t i_check = 0, check_limit = 5;
+	size_t i_check = 0, check_limit = 10;
 	bool ready_to_exit = false;
 
 	Checker(double* ptr, double* t_ptr, ExitType type_ = ExitType::Relative, std::string name_ = "Checker", double eps = -1)
@@ -388,7 +411,20 @@ struct Checker
 
 void init_parameters(Configuration &c)
 {
+	#ifdef __linux__ 
+	string str = "mkdir -p fields/";
+	system(str.c_str());
+	#endif
+
+	#ifdef _WIN32
+	CreateDirectoryA("fields", NULL);
+	#endif
+	
+
 	ReadingFile par("parameters.txt");
+
+	int bc; par.reading<int>(bc, "xbc"); c.xbc = static_cast<bc_type>(bc);
+
 
 	par.reading<double>(c.Ly, "Ly", 1.0);
 	par.reading<double>(c.Lx, "Lx", 1.0);
@@ -652,7 +688,7 @@ struct Backup
 		second_backup = second;
 	}
 
-	void save(size_t iter, double time, Configuration& c, std::vector<double*> v = {}, std::string head = "")
+	void save(size_t iter, double time, int call_i, Configuration& c, std::vector<double*> v = {}, std::string head = "")
 	{
 		stringstream ss, ss2; string str;
 		ss.str(""); ss.clear();
@@ -662,8 +698,8 @@ struct Backup
 
 		std::ofstream write(backup_name[0]);
 		write << "x, y, " + head << endl;
-		write << "iter,time,Ra= " << iter << " " << time << " " << c.Ra << endl;
-		//all << setprecision(16) << fixed;
+		write << "iter,time,call_i,Ra= " << iter << " " << time << " " << call_i << " " << c.Ra << endl;
+		write << std::setprecision(10) << std::fixed;
 		for (unsigned int j = 0; j <= c.ny; j++) {
 			for (unsigned int i = 0; i <= c.nx; i++) {
 				unsigned int l = i + c.offset * j;
@@ -680,8 +716,8 @@ struct Backup
 		{
 			std::ofstream write(backup_name[1]);
 			write << "x, y, " + head << endl;
-			write << "iter,time,Ra= " << iter << " " << time << " " << c.Ra << endl;
-			//all << setprecision(16) << fixed;
+			write << "iter,time,call_i,Ra= " << iter << " " << time << " " << call_i << " " << c.Ra << endl;
+			write << std::setprecision(10) << std::fixed;
 			for (unsigned int j = 0; j <= c.ny; j++) {
 				for (unsigned int i = 0; i <= c.nx; i++) {
 					unsigned int l = i + c.offset * j;
@@ -696,20 +732,27 @@ struct Backup
 		}
 	};
 
-	void read(size_t &iter, double &time, Configuration& c, std::vector<double*> v = {}, std::string head = "")
+	void read(size_t &iter, double &time, int &call_i, Configuration& c, std::vector<double*> v = {})
 	{
 		string str;
 		string substr;
 		stringstream ss;
 
-		std::ifstream read(backup_name[0]);
+		std::ifstream read; 
+		if (check2files(backup_name[0], backup_name[1]))
+			read.open(backup_name[0]);
+		else 
+			read.open(backup_name[1]);
+
 
 		getline(read, str); //skip header
 		getline(read, str); //read iter, time, Ra
-		ss << str; 
-		ss >> substr; ss >> substr; iter = atoi(substr.c_str());
-		ss >> substr; ss >> substr; time = atof(substr.c_str());
-		ss >> substr; ss >> substr; c.Ra = atof(substr.c_str());
+		ss << str; 		
+		ss >> substr; //skip name
+		ss >> substr; iter = atoi(substr.c_str());
+		ss >> substr; time = atof(substr.c_str());
+		ss >> substr; call_i = atoi(substr.c_str());
+		ss >> substr; c.Ra = atof(substr.c_str());
 
 		for (unsigned int j = 0; j <= c.ny; j++) {
 			for (unsigned int i = 0; i <= c.nx; i++) {
@@ -728,6 +771,18 @@ struct Backup
 				}
 			}
 		}
+	}
+
+	bool check2files(const std::string& filePath1, const std::string& filePath2) {
+		std::ifstream file1(filePath1, std::ios::binary | std::ios::ate); 
+		std::ifstream file2(filePath2, std::ios::binary | std::ios::ate);
+		if (!file2.is_open()) 
+		{
+			return true;
+		}
+		std::streampos size1 = file1.tellg();
+		std::streampos size2 = file2.tellg();
+		return size1 >= size2; 
 	}
 
 };

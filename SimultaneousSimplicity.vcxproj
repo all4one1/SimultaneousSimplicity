@@ -91,6 +91,7 @@
     <ClInclude Include="CuPoisson\CuPoisson.h" />
     <ClInclude Include="Extras.h" />
     <ClInclude Include="ExtrasCuda.h" />
+    <ClInclude Include="cpu_stream.h" />
     <ClInclude Include="kernels\deriv.h" />
     <ClInclude Include="kernels\stream.h" />
     <ClInclude Include="types_project.h" />
