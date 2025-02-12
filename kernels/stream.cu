@@ -23,7 +23,7 @@ __global__ void check()
 	printf("grav_x= %f grav_y= %f \n", dev.grav_x, dev.grav_y);
 	printf("vibr_x= %f vibr_y= %f \n", dev.vibr_x, dev.vibr_y);
 	printf("density_x= %f density_y= %f \n", dev.density_x, dev.density_y);
-	printf("xbc= %i \n", (int)dev.xbc);
+	printf("xbc= %i, ybc= %i, zbc= %i \n", (int)dev.xbc, (int)dev.ybc, (int)dev.zbc);
 	printf("A= %f Ca= %f Gr = %f\n", dev.A, dev.Ca, dev.Gr);
 
 	printf("\n");
@@ -243,13 +243,13 @@ namespace stream
 					if (i == 0 && (j > 0 && j < dev.ny))
 					{
 						int ll = dev.nx - 1 + dev.offset * j;
-						ksi_new[l] = ksi[ll] + tau * (dx2(ll, ksi) + dy2(ll, ksi));
+						ksi_new[l] = ksi[ll] + tau * (dx2(ll, ksi) + dy2(ll, ksi) + omega[ll]);
 						return;
 					}
 					if (i == dev.nx && (j > 0 && j < dev.ny))
 					{
 						int ll = 1 + dev.offset * j;
-						ksi_new[l] = ksi[ll] + tau * (dx2(ll, ksi) + dy2(ll, ksi));
+						ksi_new[l] = ksi[ll] + tau * (dx2(ll, ksi) + dy2(ll, ksi) + omega[ll]);
 						return;
 					}
 				}

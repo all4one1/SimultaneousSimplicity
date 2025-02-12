@@ -16,6 +16,9 @@
     <Filter Include="CuPoisson">
       <UniqueIdentifier>{07669774-ae4e-4016-9cf8-969452c9cfe3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="_Tools">
+      <UniqueIdentifier>{8cba9b6f-78cb-4fe7-8afd-e6f18aa7c90e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="kernels\deriv.h">
@@ -39,5 +42,19 @@
     <ClInclude Include="cpu_stream.h">
       <Filter>kernels</Filter>
     </ClInclude>
+    <ClInclude Include="FromOuterSparse\SparseMatrix.h">
+      <Filter>_Tools</Filter>
+    </ClInclude>
+    <ClInclude Include="cpu_stream_impl.h">
+      <Filter>kernels</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="FromOuterSparse\SparseMatrix.cpp">
+      <Filter>_Tools</Filter>
+    </ClCompile>
+    <ClCompile Include="FromOuterSparse\SparseMatrix_IO.cpp">
+      <Filter>_Tools</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

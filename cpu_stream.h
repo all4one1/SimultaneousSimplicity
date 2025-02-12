@@ -97,7 +97,7 @@ namespace stream_cpu
 
     void poisson_stream(double* ksi_new, double* ksi, double* omega)
     {
-        double tau = 0.2 * host.hx * host.hy; // Вычисляем tau
+        double tau = 0.1 * host.hx * host.hy; // Вычисляем tau
 
         for (unsigned int j = 0; j <= host.ny; ++j) {
             for (unsigned int i = 0; i <= host.nx; ++i) {
@@ -109,11 +109,11 @@ namespace stream_cpu
                         ksi_new[l] = ksi[l] + tau * (dx2(l, ksi) + dy2(l, ksi) + omega[l]);
                     }
                     else {
-                        if (j == 0 && (i > 0 && i < host.nx)) {
+                        if (j == 0 /*&& (i > 0 && i < host.nx)*/) {
                             ksi_new[l] = 0.0;
                             continue;
                         }
-                        else if (j == host.ny && (i > 0 && i < host.nx)) {
+                        else if (j == host.ny /*&& (i > 0 && i < host.nx)*/) {
                             ksi_new[l] = 0.0;
                             continue;
                         }
@@ -128,12 +128,12 @@ namespace stream_cpu
                         else if (host.xbc == 1) { // periodic
                             if (i == 0 && (j > 0 && j < host.ny)) {
                                 unsigned int ll = host.nx - 1 + host.offset * j;
-                                ksi_new[l] = ksi[ll] + tau * (dx2(ll, ksi) + dy2(ll, ksi));
+                                ksi_new[l] = ksi[ll] + tau * (dx2(ll, ksi) + dy2(ll, ksi) + omega[ll]);
                                 continue;
                             }
                             if (i == host.nx && (j > 0 && j < host.ny)) {
                                 unsigned int ll = 1 + host.offset * j;
-                                ksi_new[l] = ksi[ll] + tau * (dx2(ll, ksi) + dy2(ll, ksi));
+                                ksi_new[l] = ksi[ll] + tau * (dx2(ll, ksi) + dy2(ll, ksi) + omega[ll]);
                                 continue;
                             }
                         }
@@ -145,6 +145,63 @@ namespace stream_cpu
             }
         }
     }
+
+    void poisson_stream_v2(double* ksi_new, double* ksi, double* omega)
+    {
+        double tau = 0.25 * host.hx * host.hy; // Вычисляем tau
+
+        for (unsigned int j = 0; j <= host.ny; ++j) {
+            for (unsigned int i = 0; i <= host.nx; ++i) {
+                unsigned int l = i + host.offset * j;
+
+                auto inner = [&](unsigned int l)
+                {
+                    return 0.25 * (ksi[l - 1] + ksi[l + 1] + ksi[l + host.offset] + ksi[l - host.offset]) +  0.25 * host.hx * host.hy * omega[l];
+                };
+                //if (l < host.N) 
+                {
+                    /* INNER */
+                    if (i > 0 && i < host.nx && j > 0 && j < host.ny) {
+                        ksi_new[l] = inner(l);
+                    }
+                    else {
+                        if (j == 0 /*&& (i > 0 && i < host.nx)*/) {
+                            ksi_new[l] = 0.0;
+                            continue;
+                        }
+                        else if (j == host.ny /*&& (i > 0 && i < host.nx)*/) {
+                            ksi_new[l] = 0.0;
+                            continue;
+                        }
+
+                        if (host.xbc == 0) { // closed
+                            if (i == 0 && (j > 0 && j < host.ny))
+                                ksi_new[l] = 0.0;
+                            if (i == host.nx && (j > 0 && j < host.ny))
+                                ksi_new[l] = 0.0;
+                            continue;
+                        }
+                        else if (host.xbc == 1) { // periodic
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                unsigned int ll = host.nx - 1 + host.offset * j;
+                                ksi_new[l] = inner(ll);
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                unsigned int ll = 1 + host.offset * j;
+                                ksi_new[l] = inner(ll);
+                                continue;
+                            }
+                        }
+                        {
+                            ksi_new[l] = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 
     void temperature_2d(double* T, double* T0, double* ksi)
     {
@@ -260,6 +317,14 @@ namespace stream_cpu
         }
     }
 
+    void swap_one(double* f_old, double* f_new)
+    {
+        for (unsigned int l = 0; l < host.N; l++)
+        {
+            f_old[l] = f_new[l];
+        }
+    }
+
     void swap_three(double* f_old, double* f_new, double* f2_old, double* f2_new, double* f3_old, double* f3_new)
     {
         for (unsigned int l = 0; l < host.N; l++)
@@ -275,7 +340,7 @@ namespace stream_cpu
     {
         unsigned int k = 0;
         double eps = 0, res = 0, res0 = 0;
-        double eps_iter = 1e-4;
+        double eps_iter = 1e-5;
 
         void solve(double *ksi, double *ksi0, double *omega)
         {
@@ -293,7 +358,7 @@ namespace stream_cpu
             };
 
 
-            for (k = 1; k < 1000000; k++)
+            for (k = 1; k < 100000; k++)
             {
                 poisson_stream(ksi, ksi0, omega);
                 res = reduce(ksi);
@@ -303,11 +368,9 @@ namespace stream_cpu
                 std::swap(ksi, ksi0);
 
                 if (eps < eps_iter)	break;
-                if (k % 1000 == 0) std::cout << "device k = " << k << ", eps = " << eps << std::endl;
+                if (k % 1000 == 0) std::cout << "k = " << k << ", eps = " << eps << std::endl;
             }
-            if (k > 100) std::cout << "device k = " << k << ", eps = " << eps << std::endl;
+            //if (k > 100) std::cout << "device k = " << k << ", eps = " << eps << std::endl;
         }
     };
-
-
 }

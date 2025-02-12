@@ -92,9 +92,15 @@
     <ClInclude Include="Extras.h" />
     <ClInclude Include="ExtrasCuda.h" />
     <ClInclude Include="cpu_stream.h" />
+    <ClInclude Include="FromOuterSparse\SparseMatrix.h" />
+    <ClInclude Include="cpu_stream_impl.h" />
     <ClInclude Include="kernels\deriv.h" />
     <ClInclude Include="kernels\stream.h" />
     <ClInclude Include="types_project.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="FromOuterSparse\SparseMatrix.cpp" />
+    <ClCompile Include="FromOuterSparse\SparseMatrix_IO.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

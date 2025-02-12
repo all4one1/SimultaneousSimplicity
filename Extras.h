@@ -423,8 +423,9 @@ void init_parameters(Configuration &c)
 
 	ReadingFile par("parameters.txt");
 
-	int bc; par.reading<int>(bc, "xbc"); c.xbc = static_cast<bc_type>(bc);
-
+	int bc; 
+	par.reading<int>(bc, "xbc", 0); c.xbc = static_cast<bc_type>(bc);
+	par.reading<int>(bc, "ybc", 0); c.ybc = static_cast<bc_type>(bc);
 
 	par.reading<double>(c.Ly, "Ly", 1.0);
 	par.reading<double>(c.Lx, "Lx", 1.0);
@@ -448,7 +449,7 @@ void init_parameters(Configuration &c)
 
 	if (c.dim == 1)
 	{
-		c.ny = c.nz = 1;
+		c.ny = c.nz = 0;
 		c.hy = c.hz = 0;
 		c.Sx = 1;
 		c.Sy = c.Sz = 0;
@@ -458,7 +459,7 @@ void init_parameters(Configuration &c)
 
 	if (c.dim == 2)
 	{
-		c.nz = 1;
+		c.nz = 0;
 		c.hz = 0;
 		c.Sx = c.hy;
 		c.Sy = c.hx;
@@ -587,7 +588,12 @@ void deleteFilesInDirectory(const std::wstring& directoryPath) {
 	// Close the search handle
 	FindClose(hFind);
 }
-
+std::streamoff fileSize(const std::string& filePath) { 
+	std::ifstream file(filePath, std::ios::binary | std::ios::ate); 
+	if (!file.is_open()) { std::cerr << "Error!" << std::endl;        return false; }
+	std::streampos bytes = file.tellg();
+	return bytes.operator std::streamoff(); 	//file size in bytes
+}
 
 
 double sum_signed(double* f, unsigned int N)
@@ -598,7 +604,6 @@ double sum_signed(double* f, unsigned int N)
 		s += f[i];
 	return s;
 }
-
 double sum_abs(double* f, unsigned int N)
 {
 	double s = 0;
@@ -607,7 +612,6 @@ double sum_abs(double* f, unsigned int N)
 		s += abs(f[i]);
 	return s;
 }
-
 double signedmax(double* f, unsigned int N)
 {
 	double m = f[0];
@@ -628,7 +632,6 @@ double signedmin(double* f, unsigned int N)
 	}
 	return m;
 }
-
 double absmax(double *f, unsigned int N)
 {
 	double m = f[0];
@@ -640,29 +643,33 @@ double absmax(double *f, unsigned int N)
 	return m;
 }
 
+void velocity_stats(Configuration &c, double *vx, double *vy, StatValues &stat) {
+	double V = 0, VX = 0, VY = 0;
+	stat.Ek = stat.Vmax = 0.0;
 
-void transform_to_velocity(Configuration &c, double *ksi, double *vx, double *vy)
-{
+	unsigned int l = 0;
 	for (unsigned int j = 0; j <= c.ny; j++) {
 		for (unsigned int i = 0; i <= c.nx; i++) {
-			unsigned int l = i + c.offset * j;
-			if (j == 0 || j == c.ny)
-			{
-				vx[l] = vy[l] = 0;
-				continue;
-			}
+			l = i + c.offset * j;
+			VX = abs(vx[l]);
+			VY = abs(vy[l]);
 
-			if (i == 0 || i == c.nx) 
-			{
-				vx[l] = vy[l] = 0;
-				continue;
-			}
-
-			vx[l] = (ksi[l + c.offset] - ksi[l - c.offset]) / (2.0 * c.hy);
-			vy[l] = -(ksi[l + 1] - ksi[l - 1]) / (2.0 * c.hx);
+			V = vx[l] * vx[l] + vy[l] * vy[l];
+			stat.Ek += V;
+			if (sqrt(V) > stat.Vmax) stat.Vmax = sqrt(V);
+			if (VX > stat.Vx) stat.Vx = VX;
+			if (VY > stat.Vy) stat.Vy = VY;
 		}
 	}
+	stat.Ek = stat.Ek / 2.0 * c.hx * c.hy;
+
+	stat.Cu = stat.Vx * c.tau / c.hx + stat.Vy * c.tau / c.hy;
+
+	std::vector<double> Pe = { (stat.Vx * c.hx + stat.Vy * c.hy) * c.Pr, (stat.Vx * c.hx + stat.Vy * c.hy) * 1, (stat.Vx * c.hx + stat.Vy * c.hy) * (c.Le * c.Pr) };
+
+	stat.Pe = *(std::max_element(Pe.begin(), Pe.end()));
 }
+
 void make_full(Configuration &c, double* full, double* add)
 {
 	for (unsigned int j = 0; j <= c.ny; j++) {
@@ -675,6 +682,31 @@ void make_full(Configuration &c, double* full, double* add)
 		}
 	}
 };
+
+void Nu_y(Configuration &c, double* f, double &Nu_top, double &Nu_down) {
+	Nu_top = 0;
+	Nu_down = 0;
+
+	auto dy1 = [&](unsigned int l)
+	{
+		return (f[l + c.offset] - f[l]) / c.hy;
+	};
+	auto dy1_ = [&](unsigned int l)
+	{
+		return (f[l] - f[l - c.offset]) / c.hy;
+	};
+
+	unsigned int l;
+	for (unsigned int i = 0; i <= c.nx - 1; i++)
+	{
+		l = i;
+		Nu_down += (dy1(l) + dy1(l + 1)) / 2.0 * c.hx;
+		l = i + c.offset * (c.ny - 1);
+		Nu_top  += (dy1_(l) + dy1_(l + 1)) / 2.0 * c.hx;
+	}
+	Nu_down /= c.Lx;
+	Nu_top /= c.Lx;
+}
 
 
 struct Backup
@@ -785,4 +817,140 @@ struct Backup
 		return size1 >= size2; 
 	}
 
+};
+
+
+struct Trajectory
+{
+	std::vector<double> x, y, z;
+	Configuration& c;
+	size_t n;
+	std::ofstream w;
+	Trajectory(Configuration &c_, size_t n_, bool app = false) : c(c_), n(n_)
+	{
+		x.resize(n);
+		y.resize(n);
+		z.resize(n);
+		if (app) w.open("trajectory.dat", std::ofstream::app); //read last
+		else w.open("trajectory.dat");
+		
+	}
+
+	void trace_all(double t, double *vx, double *vy, double *vz = nullptr)
+	{
+		for (size_t p = 0; p < n; p++)
+		{
+			trace(x[p], y[p], z[p], vx, vy, vz, c);
+			w << std::setprecision(12);
+			w << t << " " << x[p] << " " << y[p] << " ";
+			if (vz != nullptr) w << z[p] << " ";
+		}
+		w << endl;
+	}
+	
+	void trace(double& x, double& y, double& z, double* vx, double* vy, double* vz, Configuration& c)
+	{
+		unsigned int i1, j1, k1, i2, j2, k2;
+		double VX, VY, VZ, x1, x2, y1, y2, z1, z2, h3;
+		double inp;
+		h3 = c.dV;
+		#define zero 1e-10
+
+		//i1, i2
+		if (modf((x / c.hx), &inp) < zero) {
+			i1 = unsigned int(x / c.hx);
+			i2 = i1 + 1;
+			if (i1 == c.nx) {
+				i2 = c.nx;
+				i1 = i2 - 1;
+			}
+		}
+		else {
+			i1 = unsigned int(floor(x / c.hx));
+			i2 = unsigned int(ceil(x / c.hx));
+		}
+
+		//j1,j2
+		if (modf((y / c.hy), &inp) < zero) {
+			j1 = unsigned int(y / c.hy);
+			j2 = j1 + 1;
+			if (j1 == c.ny) {
+				j2 = c.ny;
+				j1 = j2 - 1;
+			}
+		}
+		else {
+			j1 = unsigned int(floor(y / c.hy));
+			j2 = unsigned int(ceil(y / c.hy));
+		}
+
+		//k1,k2
+		if (modf((z / c.hz), &inp) < zero) {
+			k1 = unsigned int(z / c.hz);
+			k2 = k1 + 1;
+			if (k1 == c.nz) {
+				k2 = c.nz;
+				k1 = k2 - 1;
+			}
+		}
+		else {
+			k1 = unsigned int(floor(z / c.hz));
+			k2 = unsigned int(ceil(z / c.hz));
+		}
+
+
+		x1 = c.hx * i1; x2 = c.hx * i2;
+		y1 = c.hy * j1; y2 = c.hy * j2;
+		z1 = c.hz * k1; z2 = c.hz * k2;
+		if (vz == nullptr)
+		{
+			z2 = 1;
+			z1 = 0;
+		}
+
+		VX = vx[i1 + c.offset * j1 + c.offset2 * k1] * (x2 - x) * (y2 - y) * (z2 - z) +
+			vx[i1 + c.offset * j1 + c.offset2 * k2] * (x2 - x) * (y2 - y) * (-z1 + z) +
+			vx[i1 + c.offset * j2 + c.offset2 * k1] * (x2 - x) * (-y1 + y) * (z2 - z) +
+			vx[i1 + c.offset * j2 + c.offset2 * k2] * (x2 - x) * (-y1 + y) * (-z1 + z) +
+			vx[i2 + c.offset * j1 + c.offset2 * k1] * (-x1 + x) * (y2 - y) * (z2 - z) +
+			vx[i2 + c.offset * j1 + c.offset2 * k2] * (-x1 + x) * (y2 - y) * (-z1 + z) +
+			vx[i2 + c.offset * j2 + c.offset2 * k1] * (-x1 + x) * (-y1 + y) * (z2 - z) +
+			vx[i2 + c.offset * j2 + c.offset2 * k2] * (-x1 + x) * (-y1 + y) * (-z1 + z);
+		VX = VX / h3;
+
+		VY = vy[i1 + c.offset * j1 + c.offset2 * k1] * (x2 - x) * (y2 - y) * (z2 - z) +
+			vy[i1 + c.offset * j1 + c.offset2 * k2] * (x2 - x) * (y2 - y) * (-z1 + z) +
+			vy[i1 + c.offset * j2 + c.offset2 * k1] * (x2 - x) * (-y1 + y) * (z2 - z) +
+			vy[i1 + c.offset * j2 + c.offset2 * k2] * (x2 - x) * (-y1 + y) * (-z1 + z) +
+			vy[i2 + c.offset * j1 + c.offset2 * k1] * (-x1 + x) * (y2 - y) * (z2 - z) +
+			vy[i2 + c.offset * j1 + c.offset2 * k2] * (-x1 + x) * (y2 - y) * (-z1 + z) +
+			vy[i2 + c.offset * j2 + c.offset2 * k1] * (-x1 + x) * (-y1 + y) * (z2 - z) +
+			vy[i2 + c.offset * j2 + c.offset2 * k2] * (-x1 + x) * (-y1 + y) * (-z1 + z);
+		VY = VY / h3;
+		//cout << VX * c.tau << " " << VY * c.tau << endl;
+			 
+		x = x + VX * c.tau;
+		y = y + VY * c.tau;
+
+		if (vz != nullptr)
+		{
+			VZ = vz[i1 + c.offset * j1 + c.offset2 * k1] * (x2 - x) * (y2 - y) * (z2 - z) +
+				vz[i1 + c.offset * j1 + c.offset2 * k2] * (x2 - x) * (y2 - y) * (-z1 + z) +
+				vz[i1 + c.offset * j2 + c.offset2 * k1] * (x2 - x) * (-y1 + y) * (z2 - z) +
+				vz[i1 + c.offset * j2 + c.offset2 * k2] * (x2 - x) * (-y1 + y) * (-z1 + z) +
+				vz[i2 + c.offset * j1 + c.offset2 * k1] * (-x1 + x) * (y2 - y) * (z2 - z) +
+				vz[i2 + c.offset * j1 + c.offset2 * k2] * (-x1 + x) * (y2 - y) * (-z1 + z) +
+				vz[i2 + c.offset * j2 + c.offset2 * k1] * (-x1 + x) * (-y1 + y) * (z2 - z) +
+				vz[i2 + c.offset * j2 + c.offset2 * k2] * (-x1 + x) * (-y1 + y) * (-z1 + z);
+			VZ = VZ / h3;
+			z = z + VZ * c.tau;
+		}
+
+		if (x < 0) x = x + c.Lx;
+		if (x > c.hx * c.nx) x = x - c.Lx;
+		if (y < 0) y = y + c.Ly;
+		if (y > c.hy * c.ny) y = y - c.Ly;
+		if (z < 0) z = z + c.Lz;
+		if (z > c.hz * c.nz) z = z - c.Lz;
+	}
 };
