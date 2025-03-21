@@ -61,7 +61,7 @@ __global__ void swap_three(double* f_old, double* f_new, double* f2_old, double*
 
 
 
-namespace stream
+namespace stream_cuda
 {
 	#define VX_ dy1(l, ksi)
 	#define VY_ -dx1(l, ksi)
@@ -336,6 +336,79 @@ namespace stream
 			}
 		}
 	}
+
+
+	__global__ void temperature_2d_flux(double* T, double* T0, double* ksi)
+	{
+		unsigned int i = threadIdx.x + blockIdx.x * blockDim.x;
+		unsigned int j = threadIdx.y + blockIdx.y * blockDim.y;
+		unsigned int l = i + dev.offset * j;
+
+		if (i <= dev.nx && j <= dev.ny && l < dev.N)
+		{
+			/*	INNER	*/
+			if (i > 0 && i < dev.nx && j > 0 && j < dev.ny)
+			{
+				T[l] = T0[l]
+					+ dev.tau * (
+						-dy1(l, ksi) * dx1(l, T0) + dx1(l, ksi) * dy1(l, T0)
+						+ (VX_ * dev.density_x + VY_ * dev.density_y)
+
+						+ (dx2(l, T0) + dy2(l, T0)) / dev.Pr
+						);
+					return;
+			}
+
+			else
+			{
+				if (j == 0)
+				{
+					T[l] = dy1_eq_0_up(l, T0);
+					return;
+				}
+				else if (j == dev.ny)
+				{
+					T[l] = dy1_eq_0_down(l, T0);
+					return;
+				}
+
+				if (dev.xbc == closed)
+				{
+					if (i == 0 && (j > 0 && j < dev.ny))
+					{
+						T[l] = dx1_eq_0_forward(l, T0);
+						return;
+					}
+					if (i == dev.nx && (j > 0 && j < dev.ny))
+					{
+						T[l] = dx1_eq_0_back(l, T0);
+						return;
+					}
+
+				}
+				else if (dev.xbc == periodic)
+				{
+					if (i == 0 && (j > 0 && j < dev.ny))
+					{
+						int ll = dev.nx - 1 + dev.offset * j;
+						T[l] = T0[ll];
+						return;
+					}
+					if (i == dev.nx && (j > 0 && j < dev.ny))
+					{
+						int ll = 1 + dev.offset * j;
+						T[l] = T0[ll];
+						return;
+					}
+
+				}
+
+				T[l] = 0;
+			}
+		}
+	}
+
+
 
 	__global__ void concentration_2d(double* C, double* C0, double* ksi)
 	{

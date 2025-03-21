@@ -31,7 +31,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 12.5.props" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 12.8.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -81,29 +81,29 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="CuPoisson\CudaReduction\CuReduction.cu" />
-    <CudaCompile Include="kernels\stream.cu" />
-    <CudaCompile Include="main.cpp" />
+    <CudaCompile Include="src\CuPoisson\CudaReduction\CuReduction.cu" />
+    <CudaCompile Include="src\kernels\stream.cu" />
+    <CudaCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CuPoisson\CudaReduction\CuGraph.h" />
-    <ClInclude Include="CuPoisson\CudaReduction\CuReduction.h" />
-    <ClInclude Include="CuPoisson\CuPoisson.h" />
-    <ClInclude Include="Extras.h" />
-    <ClInclude Include="ExtrasCuda.h" />
-    <ClInclude Include="cpu_stream.h" />
-    <ClInclude Include="FromOuterSparse\SparseMatrix.h" />
-    <ClInclude Include="cpu_stream_impl.h" />
-    <ClInclude Include="kernels\deriv.h" />
-    <ClInclude Include="kernels\stream.h" />
-    <ClInclude Include="types_project.h" />
+    <ClInclude Include="src\CuPoisson\CudaReduction\CuGraph.h" />
+    <ClInclude Include="src\CuPoisson\CudaReduction\CuReduction.h" />
+    <ClInclude Include="src\CuPoisson\CuPoisson.h" />
+    <ClInclude Include="src\Extras.h" />
+    <ClInclude Include="src\ExtrasCuda.h" />
+    <ClInclude Include="src\cpu_stream.h" />
+    <ClInclude Include="src\FromOuterSparse\SparseMatrix.h" />
+    <ClInclude Include="src\cpu_stream_impl.h" />
+    <ClInclude Include="src\kernels\deriv.h" />
+    <ClInclude Include="src\kernels\stream.h" />
+    <ClInclude Include="src\types_project.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="FromOuterSparse\SparseMatrix.cpp" />
-    <ClCompile Include="FromOuterSparse\SparseMatrix_IO.cpp" />
+    <ClCompile Include="src\FromOuterSparse\SparseMatrix.cpp" />
+    <ClCompile Include="src\FromOuterSparse\SparseMatrix_IO.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 12.5.targets" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 12.8.targets" />
   </ImportGroup>
 </Project>

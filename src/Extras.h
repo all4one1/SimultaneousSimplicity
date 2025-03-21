@@ -447,26 +447,27 @@ void init_parameters(Configuration &c)
 	c.hy = c.Ly / c.ny;
 	c.hz = c.Lz / c.nz;
 
+	unsigned int q = 1;
 	if (c.dim == 1)
 	{
-		c.ny = c.nz = 0;
+		c.ny = c.nz = 1 - q;
 		c.hy = c.hz = 0;
 		c.Sx = 1;
 		c.Sy = c.Sz = 0;
 		c.dV = c.hx;
-		c.N = (c.nx + 1);
+		c.N = (c.nx + q);
 	}
 
 	if (c.dim == 2)
 	{
-		c.nz = 0;
+		c.nz = 1 - q;
 		c.hz = 0;
 		c.Sx = c.hy;
 		c.Sy = c.hx;
 		c.Sz = 0;
 		c.dV = c.hx * c.hy;
-		c.N = (c.nx + 1) * (c.ny + 1);
-		c.offset = c.nx + 1;
+		c.N = (c.nx + q) * (c.ny + q);
+		c.offset = c.nx + q;
 		c.offset2 = 0;
 	}
 
@@ -476,9 +477,9 @@ void init_parameters(Configuration &c)
 		c.Sy = c.hx * c.hz;
 		c.Sz = c.hx * c.hy;
 		c.dV = c.hx * c.hy * c.hz;
-		c.N = (c.nx + 1) * (c.ny + 1) * (c.nz + 1);
-		c.offset = c.nx + 1;
-		c.offset2 = (c.nx + 1) * (c.ny + 1);
+		c.N = (c.nx + q) * (c.ny + q) * (c.nz + q);
+		c.offset = c.nx + q;
+		c.offset2 = (c.nx + q) * (c.ny + q);
 	}
 
 	c.Nbytes = c.N * sizeof(double);
@@ -513,7 +514,7 @@ void pauseWithLineInfo(const std::string& file, int line)
 #define pause pauseWithLineInfo(__FILE__, __LINE__);
 
 
-void write_fields2d(size_t iter, Configuration& c, std::vector<double*> v = {}, std::string head = "T, vx, vy, vz, C, Psi")
+void write_fields2d(std::string name, Configuration& c, std::vector<double*> v = {}, std::string head = "T, vx, vy, vz, C, Psi")
 {
 	#ifdef __linux__
 	string folder = "fields/";
@@ -525,16 +526,16 @@ void write_fields2d(size_t iter, Configuration& c, std::vector<double*> v = {}, 
 
 
 
-	stringstream ss, ss2; string str;
-	ss.str(""); ss.clear();
+	//stringstream ss, ss2; string str;
+	//ss.str(""); ss.clear();
 	//ss << setprecision(15);
-	ss << iter * c.tau;
-	str = "fields/" + ss.str() + ".txt";
+	//ss << ;
+	string str = "fields/" + name + ".txt";
 
-	std::ofstream all((folder + ss.str() + ".txt").c_str());
+	std::ofstream all(str.c_str());
 
 	all << "x, y, " + head << endl;
-	all << "#iter= " << iter << endl;
+	//all << name << endl;
 	//all << setprecision(16) << fixed;
 	for (unsigned int j = 0; j <= c.ny; j++) {
 		for (unsigned int i = 0; i <= c.nx; i++) {
@@ -641,6 +642,20 @@ double absmax(double *f, unsigned int N)
 		if (abs(f[i]) > m) m = abs(f[i]);
 	}
 	return m;
+}
+
+
+std::string _str(double n, int pres = 5)
+{
+	std::stringstream ss;
+	ss << std::setprecision(pres) << n;
+	return ss.str();
+}
+std::string _str(int n, int pres = 5)
+{
+	std::stringstream ss;
+	ss << std::setprecision(pres) << n;
+	return ss.str();
 }
 
 void velocity_stats(Configuration &c, double *vx, double *vy, StatValues &stat) {
@@ -954,3 +969,5 @@ struct Trajectory
 		if (z > c.hz * c.nz) z = z - c.Lz;
 	}
 };
+
+

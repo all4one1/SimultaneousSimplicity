@@ -260,6 +260,64 @@ namespace stream_cpu
         }
     }
 
+    void temperature_2d_flux(double* T, double* T0, double* ksi)
+    {
+        for (unsigned int j = 0; j <= host.ny; ++j) {
+            for (unsigned int i = 0; i <= host.nx; ++i) {
+                unsigned int l = i + host.offset * j;
+
+                if (l < host.N) {
+                    /* INNER */
+                    if (i > 0 && i < host.nx && j > 0 && j < host.ny) {
+                        T[l] = T0[l]
+                            + host.tau * (
+                                -dy1(l, ksi) * dx1(l, T0) + dx1(l, ksi) * dy1(l, T0)
+                                + (VX_ * host.density_x + VY_ * host.density_y)
+                                + (dx2(l, T0) + dy2(l, T0)) / host.Pr
+                                );
+                            continue;
+                    }
+                    else {
+                        if (j == 0) {
+                            T[l] = dy1_eq_0_up(l, T0);
+                            continue;
+                        }
+                        else if (j == host.ny) {
+                            T[l] = dy1_eq_0_down(l, T0);
+                            continue;
+                        }
+
+                        if (host.xbc == 0) { // closed
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                T[l] = dx1_eq_0_forward(l, T0);
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                T[l] = dx1_eq_0_back(l, T0);
+                                continue;
+                            }
+                        }
+                        else if (host.xbc == 1) { // periodic
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                unsigned int ll = host.nx - 1 + host.offset * j;
+                                T[l] = T0[ll];
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                unsigned int ll = 1 + host.offset * j;
+                                T[l] = T0[ll];
+                                continue;
+                            }
+                        }
+
+                        T[l] = 0;
+                    }
+                }
+            }
+        }
+    }
+
+
     void concentration_2d(double* C, double* C0, double* ksi)
     {
         for (unsigned int j = 0; j <= host.ny; ++j) {
