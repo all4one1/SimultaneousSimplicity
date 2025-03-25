@@ -48,6 +48,12 @@
     <ClInclude Include="src\cpu_stream_impl.h">
       <Filter>kernels</Filter>
     </ClInclude>
+    <ClInclude Include="src\globals.h" />
+    <ClInclude Include="src\init.h" />
+    <ClInclude Include="src\CuBiCGStab\src\kernels.h" />
+    <ClInclude Include="src\CuBiCGStab\src\ReductionM.h" />
+    <ClInclude Include="src\CuBiCGStab\src\CudaExtras.h" />
+    <ClInclude Include="src\CuBiCGStab\src\CuCG.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FromOuterSparse\SparseMatrix.cpp">

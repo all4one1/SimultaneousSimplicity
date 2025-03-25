@@ -35,7 +35,9 @@ struct Configuration
 	double density_x, density_y, density_z;
 	double Sc11, Sc12, Sc21, Sc22, psi1, psi2, psiS, Q, Ra, Rad, Rav, K, Pr, Le;
 	double Re, Pe, M, A, Ca, Gr;
+	double incr_parameter;
 	unsigned int dim, nx, ny, nz, N, offset, offset2, Nbytes;
+	unsigned int heatflux;
 	bc_type xbc, ybc, zbc;
 };
 

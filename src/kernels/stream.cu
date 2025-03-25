@@ -10,7 +10,7 @@ __global__ void check()
 {
 	printf("\n thread x:%i y:%i, information copied from device:\n", threadIdx.x, threadIdx.y);
 	printf("Ra= %f Pr=%f \n", dev.Ra, dev.Pr);
-	printf("Rav= %f K=%f Le=%f \n", dev.Rav, dev.K, dev.Le);
+	printf("Rav= %f K=%f Le=%f Rad=%f \n", dev.Rav, dev.K, dev.Le, dev.Rad);
 	printf("psi1= %f psi2= %f psiS= %f\n", dev.psi1, dev.psi2, dev.psiS);
 	printf("Sc1= %f Sc2=%f \n", dev.Sc11, dev.Sc22);
 	printf("dim= %i \n", dev.dim);

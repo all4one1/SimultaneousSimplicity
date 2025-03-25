@@ -76,7 +76,7 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <CodeGeneration>compute_75,sm_75</CodeGeneration>
+      <CodeGeneration>compute_89,sm_89</CodeGeneration>
       <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
     </CudaCompile>
   </ItemDefinitionGroup>
@@ -86,6 +86,10 @@
     <CudaCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\CuBiCGStab\src\CuCG.h" />
+    <ClInclude Include="src\CuBiCGStab\src\CudaExtras.h" />
+    <ClInclude Include="src\CuBiCGStab\src\kernels.h" />
+    <ClInclude Include="src\CuBiCGStab\src\ReductionM.h" />
     <ClInclude Include="src\CuPoisson\CudaReduction\CuGraph.h" />
     <ClInclude Include="src\CuPoisson\CudaReduction\CuReduction.h" />
     <ClInclude Include="src\CuPoisson\CuPoisson.h" />
@@ -94,6 +98,8 @@
     <ClInclude Include="src\cpu_stream.h" />
     <ClInclude Include="src\FromOuterSparse\SparseMatrix.h" />
     <ClInclude Include="src\cpu_stream_impl.h" />
+    <ClInclude Include="src\globals.h" />
+    <ClInclude Include="src\init.h" />
     <ClInclude Include="src\kernels\deriv.h" />
     <ClInclude Include="src\kernels\stream.h" />
     <ClInclude Include="src\types_project.h" />

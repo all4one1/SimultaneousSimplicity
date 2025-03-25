@@ -428,7 +428,7 @@ namespace stream_cpu
 			return dvx + dvy - (vx[l] * host.density_x + vy[l] * host.density_y);
 		};
 
-		unsigned int l, ll;
+		unsigned int l; // ll;
 		for (unsigned int j = 0; j <= c.ny; j++) {
 			for (unsigned int i = 0; i <= c.nx; i++) {
 				l = i + c.offset * j;
@@ -468,8 +468,8 @@ namespace stream_cpu
 					}
 					else if (c.xbc == periodic)
 					{
-						if (i == 0) ll = (c.nx - 1) + c.offset * j;
-						if (i == c.nx) ll = (1) + c.offset * j;
+						//if (i == 0) ll = (c.nx - 1) + c.offset * j;
+						//if (i == c.nx) ll = (1) + c.offset * j;
 
 						rhs[l] = 0; // inner(ll);
 					}
@@ -490,7 +490,7 @@ namespace stream_cpu
 			return dvx + dvy - (vx[l] * host.density_x + vy[l] * host.density_y);
 		};
 
-		unsigned int l, ll;
+		unsigned int l;  //, ll;
 		for (unsigned int j = 0; j <= c.ny; j++) {
 			for (unsigned int i = 0; i <= c.nx; i++) {
 				l = i + c.offset * j;
@@ -530,8 +530,8 @@ namespace stream_cpu
 					}
 					else if (c.xbc == periodic)
 					{
-						if (i == 0) ll = (c.nx - 1) + c.offset * j;
-						if (i == c.nx) ll = (1) + c.offset * j;
+						//if (i == 0) ll = (c.nx - 1) + c.offset * j;
+						//if (i == c.nx) ll = (1) + c.offset * j;
 
 						rhs[l] = 0; // inner(ll);
 					}
@@ -548,7 +548,7 @@ namespace stream_cpu
 			dvy = 0.5 * (f[l + c.offset] - f[l - c.offset]) / c.hy * vy[l];
 			return dvx + dvy;
 		};
-		unsigned int l, ll;
+		unsigned int l; // ll;
 		for (unsigned int j = 0; j <= c.ny; j++) {
 			for (unsigned int i = 0; i <= c.nx; i++) {
 				l = i + c.offset * j;
@@ -598,8 +598,8 @@ namespace stream_cpu
 					}
 					else if (c.xbc == periodic)
 					{
-						if (i == 0) ll = (c.nx - 1) + c.offset * j;
-						if (i == c.nx) ll = (1) + c.offset * j;
+						//if (i == 0) ll = (c.nx - 1) + c.offset * j;
+						//if (i == c.nx) ll = (1) + c.offset * j;
 
 						rhs[l] = 0; // inner(ll);
 					}
@@ -609,7 +609,7 @@ namespace stream_cpu
 	}
 	void form_rhs_stream(Configuration& c, double* rhs, double* omega, bool reset = true)
 	{
-		unsigned int l, ll;
+		unsigned int l; // ll;
 		for (unsigned int j = 0; j <= c.ny; j++) {
 			for (unsigned int i = 0; i <= c.nx; i++) {
 				l = i + c.offset * j;
@@ -651,8 +651,8 @@ namespace stream_cpu
 					}
 					else if (c.xbc == periodic)
 					{
-						if (i == 0) ll = (c.nx - 1) + c.offset * j;
-						if (i == c.nx) ll = (1) + c.offset * j;
+						//if (i == 0) ll = (c.nx - 1) + c.offset * j;
+						//if (i == c.nx) ll = (1) + c.offset * j;
 
 						rhs[l] = 0; // inner(ll);
 					}

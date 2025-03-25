@@ -409,99 +409,6 @@ struct Checker
 	//bool check_long_term();
 };
 
-void init_parameters(Configuration &c)
-{
-	#ifdef __linux__ 
-	string str = "mkdir -p fields/";
-	system(str.c_str());
-	#endif
-
-	#ifdef _WIN32
-	CreateDirectoryA("fields", NULL);
-	#endif
-	
-
-	ReadingFile par("parameters.txt");
-
-	int bc; 
-	par.reading<int>(bc, "xbc", 0); c.xbc = static_cast<bc_type>(bc);
-	par.reading<int>(bc, "ybc", 0); c.ybc = static_cast<bc_type>(bc);
-
-	par.reading<double>(c.Ly, "Ly", 1.0);
-	par.reading<double>(c.Lx, "Lx", 1.0);
-	par.reading<unsigned int>(c.nx, "nx", 20);
-	par.reading<unsigned int>(c.ny, "ny", 20);
-	par.reading<double>(c.Ra, "Ra", 5000);
-	par.reading<double>(c.Pr, "Pr", 10);
-	par.reading<double>(c.Le, "Le", 130);
-	par.reading<double>(c.K, "K", 0);
-	par.reading<double>(c.tau, "tau", 0.0001);
-
-	par.reading<double>(c.grav_y, "grav_y", 1.0);
-
-	if (c.nx > 0) c.dim = 1;
-	if (c.ny > 0) c.dim = 2;
-	if (c.nz > 0) c.dim = 3;
-
-	c.hx = c.Lx / c.nx;
-	c.hy = c.Ly / c.ny;
-	c.hz = c.Lz / c.nz;
-
-	unsigned int q = 1;
-	if (c.dim == 1)
-	{
-		c.ny = c.nz = 1 - q;
-		c.hy = c.hz = 0;
-		c.Sx = 1;
-		c.Sy = c.Sz = 0;
-		c.dV = c.hx;
-		c.N = (c.nx + q);
-	}
-
-	if (c.dim == 2)
-	{
-		c.nz = 1 - q;
-		c.hz = 0;
-		c.Sx = c.hy;
-		c.Sy = c.hx;
-		c.Sz = 0;
-		c.dV = c.hx * c.hy;
-		c.N = (c.nx + q) * (c.ny + q);
-		c.offset = c.nx + q;
-		c.offset2 = 0;
-	}
-
-	if (c.dim == 3)
-	{
-		c.Sx = c.hy * c.hz;
-		c.Sy = c.hx * c.hz;
-		c.Sz = c.hx * c.hy;
-		c.dV = c.hx * c.hy * c.hz;
-		c.N = (c.nx + q) * (c.ny + q) * (c.nz + q);
-		c.offset = c.nx + q;
-		c.offset2 = (c.nx + q) * (c.ny + q);
-	}
-
-	c.Nbytes = c.N * sizeof(double);
-
-	double pi = 3.1415926535897932384626433832795;
-	auto make_vector = [&pi](double angle, double (*func)(double))
-	{	return std::floor(func(angle * pi / 180.0) * 1e+10) / 1e+10;	};
-	auto set_angles = [&make_vector, &c](double a, double b)
-	{
-		c.grav_y = make_vector(a, cos);
-		c.grav_x = make_vector(a, sin);
-
-		c.vibr_y = make_vector(b, cos);
-		c.vibr_x = make_vector(b, sin);
-
-		c.density_y = make_vector(a, cos);
-		c.density_x = make_vector(a, sin);
-	};
-
-	set_angles(c.alpha, c.beta);
-
-}
 
 #define INDEX(i, j, k) i + host.offset * j + host.offset2 * k
 
@@ -514,23 +421,9 @@ void pauseWithLineInfo(const std::string& file, int line)
 #define pause pauseWithLineInfo(__FILE__, __LINE__);
 
 
-void write_fields2d(std::string name, Configuration& c, std::vector<double*> v = {}, std::string head = "T, vx, vy, vz, C, Psi")
+void write_fields2d(std::string folder, std::string name, Configuration& c, std::vector<double*> v = {}, std::string head = "T, vx, vy, vz, C, Psi")
 {
-	#ifdef __linux__
-	string folder = "fields/";
-	#endif
-
-	#ifdef _WIN32
-	string folder = "fields\\";
-	#endif
-
-
-
-	//stringstream ss, ss2; string str;
-	//ss.str(""); ss.clear();
-	//ss << setprecision(15);
-	//ss << ;
-	string str = "fields/" + name + ".txt";
+	string str = folder + name + ".txt";
 
 	std::ofstream all(str.c_str());
 
@@ -549,6 +442,26 @@ void write_fields2d(std::string name, Configuration& c, std::vector<double*> v =
 		}
 	}
 };
+
+void write_x_line(unsigned int j, std::string folder, std::string name, Configuration& c, std::vector<double*> v = {}, std::string head = "T, vx, vy, vz, C, Psi")
+{
+	string str = folder + name + ".txt";
+
+	std::ofstream w(str.c_str());
+
+	w << "x, " + head << endl;
+	for (unsigned int i = 0; i <= c.nx; i++) 
+	{
+		unsigned int l = i + c.offset * j;
+		w << i * c.hx << " " << j * c.hy << " ";
+		for (auto& it : v)
+		{
+			w << it[l] << " ";
+		}
+		w << endl;
+	}
+}
+
 
 void deleteFilesInDirectory(const std::wstring& directoryPath) {
 	WIN32_FIND_DATAW findFileData;
@@ -595,6 +508,32 @@ std::streamoff fileSize(const std::string& filePath) {
 	std::streampos bytes = file.tellg();
 	return bytes.operator std::streamoff(); 	//file size in bytes
 }
+
+void addFolder(std::string fname, std::string &global)
+{
+	#ifdef __linux__ 
+		string str = "mkdir -p " + fname +"/";
+		global = fname + "/";
+		system(str.c_str());
+	#endif
+	
+	#ifdef _WIN32
+		CreateDirectoryA(fname.c_str(), NULL);
+		global = fname + "//";
+	#endif
+}
+
+std::string _path(std::string fname)
+{
+	#ifdef __linux__ 
+	return fname + "/";
+	#endif
+
+	#ifdef _WIN32
+	return fname + "//";
+	#endif
+}
+
 
 
 double sum_signed(double* f, unsigned int N)
@@ -660,7 +599,7 @@ std::string _str(int n, int pres = 5)
 
 void velocity_stats(Configuration &c, double *vx, double *vy, StatValues &stat) {
 	double V = 0, VX = 0, VY = 0;
-	stat.Ek = stat.Vmax = 0.0;
+	stat.Ek = stat.Vmax = stat.Vx = stat.Vy = 0.0;
 
 	unsigned int l = 0;
 	for (unsigned int j = 0; j <= c.ny; j++) {
@@ -698,7 +637,7 @@ void make_full(Configuration &c, double* full, double* add)
 	}
 };
 
-void Nu_y(Configuration &c, double* f, double &Nu_top, double &Nu_down) {
+void Nu_y(Configuration &c, double* f, double &Nu_top, double &Nu_down, double plus_const = 0) {
 	Nu_top = 0;
 	Nu_down = 0;
 
@@ -719,8 +658,10 @@ void Nu_y(Configuration &c, double* f, double &Nu_top, double &Nu_down) {
 		l = i + c.offset * (c.ny - 1);
 		Nu_top  += (dy1_(l) + dy1_(l + 1)) / 2.0 * c.hx;
 	}
-	Nu_down /= c.Lx;
-	Nu_top /= c.Lx;
+
+	Nu_down = Nu_down / c.Lx + plus_const;
+	Nu_top = Nu_top / c.Lx + plus_const;
+
 }
 
 
@@ -779,7 +720,7 @@ struct Backup
 		}
 	};
 
-	void read(size_t &iter, double &time, int &call_i, Configuration& c, std::vector<double*> v = {})
+	void read(size_t &iter, double &time, int &call_i, Configuration& c, std::vector<double*> v = {}, bool read_state = true)
 	{
 		string str;
 		string substr;
@@ -794,12 +735,16 @@ struct Backup
 
 		getline(read, str); //skip header
 		getline(read, str); //read iter, time, Ra
-		ss << str; 		
-		ss >> substr; //skip name
-		ss >> substr; iter = atoi(substr.c_str());
-		ss >> substr; time = atof(substr.c_str());
-		ss >> substr; call_i = atoi(substr.c_str());
-		ss >> substr; c.Ra = atof(substr.c_str());
+
+		if (read_state) 
+		{
+			ss << str;
+			ss >> substr; //skip name
+			ss >> substr; iter = atoi(substr.c_str());
+			ss >> substr; time = atof(substr.c_str());
+			ss >> substr; call_i = atoi(substr.c_str());
+			ss >> substr; c.Ra = atof(substr.c_str());
+		}
 
 		for (unsigned int j = 0; j <= c.ny; j++) {
 			for (unsigned int i = 0; i <= c.nx; i++) {
@@ -819,6 +764,39 @@ struct Backup
 			}
 		}
 	}
+
+	void read_fields_only(Configuration& c, std::vector<double*> v = {}, unsigned int skip_lines = 0)
+	{
+		string str;
+		string substr;
+		stringstream ss;
+
+		std::ifstream read;
+		if (check2files(backup_name[0], backup_name[1]))	read.open(backup_name[0]);
+		else												read.open(backup_name[1]);
+
+		for (unsigned int q = 0; q < skip_lines; q++)
+			getline(read, str);
+
+		for (unsigned int j = 0; j <= c.ny; j++) {
+			for (unsigned int i = 0; i <= c.nx; i++) {
+				unsigned int l = i + c.offset * j;
+
+				ss.str("");
+				ss.clear();
+				getline(read, str);
+				ss << str;
+
+				ss >> substr; ss >> substr;  //skip reading x,y
+				for (auto& it : v)
+				{
+					ss >> substr;
+					it[l] = atof(substr.c_str());
+				}
+			}
+		}
+	}
+
 
 	bool check2files(const std::string& filePath1, const std::string& filePath2) {
 		std::ifstream file1(filePath1, std::ios::binary | std::ios::ate); 
@@ -841,14 +819,72 @@ struct Trajectory
 	Configuration& c;
 	size_t n;
 	std::ofstream w;
-	Trajectory(Configuration &c_, size_t n_, bool app = false) : c(c_), n(n_)
+	Trajectory(Configuration &c_, size_t n_, bool append = false) : c(c_), n(n_)
 	{
 		x.resize(n);
 		y.resize(n);
 		z.resize(n);
-		if (app) w.open("trajectory.dat", std::ofstream::app); //read last
-		else w.open("trajectory.dat");
-		
+
+		if (append)
+		{
+			string str, substr;
+			stringstream ss;
+			
+			str = get_last_line("trajectory.dat");
+			ss << str;
+
+			for (size_t i = 0; i < n; i++)
+			{
+				ss >> substr; x[i] = atof(substr.c_str());
+				ss >> substr; y[i] = atof(substr.c_str());
+				ss >> substr; z[i] = atof(substr.c_str());
+			}
+
+			w.open("trajectory.dat", std::ofstream::app);
+		}
+		else
+		{
+			w.open("trajectory.dat");
+		}
+	}
+
+	std::string get_last_line(const std::string& filename) {
+		std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+		if (!file.is_open()) {			std::cerr << "not opened!" << std::endl; return "";}
+
+		std::streampos end_pos = file.tellg();
+		if (end_pos == std::streampos(0)) {	return ""; } //empty
+
+		char ch;
+		std::string lastLine;
+		bool lineFound = false;
+
+		// Начинаем с последнего символа перед EOF
+		std::streampos pos = end_pos - std::streamoff(1);
+
+		while (pos >= std::streampos(0)) {
+			file.seekg(pos);
+			file.get(ch);
+
+			if (ch == '\n') {
+				if (lineFound) {
+					break;  // нашли начало последней строки
+				}
+			}
+			else {
+				lineFound = true;
+				lastLine.insert(lastLine.begin(), ch);
+			}
+
+			if (pos == 0) {
+				break;
+			}
+			pos -= 1;
+		}
+
+		file.close();
+		return lastLine;
 	}
 
 	void trace_all(double t, double *vx, double *vy, double *vz = nullptr)

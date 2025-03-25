@@ -1,5 +1,8 @@
-﻿#include "Extras.h"
+﻿
+
+#include "Extras.h"
 #include "ExtrasCuda.h"
+
 #include "types_project.h"
 #include "kernels/stream.h"
 #include "CuPoisson/CuPoisson.h"
@@ -8,14 +11,18 @@
 #include <vector>
 #include <iostream>
 
+
 using std::cout;
 using std::endl;
 
 __constant__ Configuration dev;
 Configuration host;
+#include "init.h"
 #include "cpu_stream.h"
 #include "cpu_stream_impl.h"
 #include "CG.h"
+
+
 
 struct RUN_STATE
 {
@@ -32,6 +39,7 @@ struct RUN_STATE
 		stop_signal = 0;
 	}
 } run;
+
 
 int main(int argc, char** argv)
 {
@@ -71,22 +79,16 @@ int main(int argc, char** argv)
 	stream_cpu::ImplicitStream IS(N, host);
 
 	Trajectory tr(host, 1, run.read_database);
-	tr.x[0] = 0.25;
-	tr.y[0] = 0.25;
-	tr.z[0] = 0;
+	tr.x[0] = 0.25;	tr.y[0] = 0.25;	tr.z[0] = 0;
 
 
 	if (run.read_database)
 	{
-		w_final.open("w_final.dat", std::ofstream::app);
-		w_temporal.open("w_temporal.dat", std::ofstream::app);
-		backup.read(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C });
-		
+		backup.read(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C }, run.read_database == 1);
 		copyArrayFromHostToDevice({ devptr.T, devptr.T0 }, hostptr.T, host.N);
 		copyArrayFromHostToDevice({ devptr.C, devptr.C0 }, hostptr.C, host.N);
 		copyArrayFromHostToDevice({ devptr.ksi, devptr.ksi0 }, hostptr.ksi, host.N);
 		copyArrayFromHostToDevice({ devptr.omega, devptr.omega0 }, hostptr.omega, host.N);
-
 		if (run.cpu_only)
 		{
 			for (unsigned int l = 0; l < host.N; l++)
@@ -97,32 +99,42 @@ int main(int argc, char** argv)
 				hostptr.C0[l] = hostptr.C[l];
  			}
 		}
+		auto open_type = run.read_database == 1 ? std::ofstream::app : std::ofstream::out;
+		w_final.open("w_final.dat", open_type);
+		w_temporal.open("w_temporal.dat", open_type);
+		if (run.read_database == 2) deleteFilesInDirectory(L"fields");
 	}
 	else
 	{
 		w_final.open("w_final.dat");
 		w_temporal.open("w_temporal.dat");
 		deleteFilesInDirectory(L"fields");
+		//init_fields(host, hostptr, devptr);
 	}
 
-	//cudaMemcpyToSymbol(dev, &host, sizeof(Configuration), 0, cudaMemcpyHostToDevice);	check << <1, 1 >> > ();	cudaDeviceSynchronize();
 
-	if (run.read_database == 0)		stream_cuda::disturb << <1, 1 >> > (10, 10, devptr.omega0, 0.1);
-	if (run.read_database == 0)		hostptr.omega0[INDEX(10,10, 0)] = 0.1;
+	if (run.read_database == 0)
+	{
+		stream_cuda::disturb << <1, 1 >> > (10, 10, devptr.omega0, 0.1);
+		stream_cuda::disturb << <1, 1 >> > (10, 10, devptr.C0, 0.1);
+		hostptr.omega0[INDEX(10, 10, 0)] = 0.1;
+	}
 
 reset:
 	if (run.call_i >= 1000) return 0;
-	if (run.call_i > 0 && run.iter == 0)	host.Ra += -25;
+	if (run.call_i > 0 && run.iter == 0)	host.Ra += host.incr_parameter;
 	
 
 	Checker check_ksi(&stat.ksi_sum, &run.timeq, Checker::ExitType::Relative, "ksi", 1e-5);
 	Checker check_omega(&stat.omega_sum, &run.timeq, Checker::ExitType::Relative, "omega");
 	Checker check_C(&stat.C_sum, &run.timeq, Checker::ExitType::Relative, "C");
 	
-	//host.K = host.Rad / host.Rad / host.Le;
+	host.K = host.Ra == 0 ? 1 : host.Rad / host.Ra / host.Le;
 	cudaMemcpyToSymbol(dev, &host, sizeof(Configuration), 0, cudaMemcpyHostToDevice);
+	check << <1, 1 >> > ();	cudaDeviceSynchronize(); //pause
 	
 	ftimer.start("main");
+
 	while (run.stop_signal == 0)
 	{
 		run.iter++;
@@ -143,7 +155,7 @@ reset:
 
 		if (run.cpu_only == 1) {
 			stream_cpu::vorticity(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
-			stream_cpu::temperature_2d(hostptr.T, hostptr.T0, hostptr.ksi);
+			//stream_cpu::temperature_2d(hostptr.T, hostptr.T0, hostptr.ksi);
 			stream_cpu::temperature_2d_flux(hostptr.T, hostptr.T0, hostptr.ksi);
 
 			stream_cpu::concentration_2d(hostptr.C, hostptr.C0, hostptr.ksi);
@@ -172,7 +184,7 @@ reset:
 		ftimer.end("calc");
 		
 		// OUTPUT
-		if (run.every_time(host.tau, 1) || run.iter == 1)
+		if (run.iter == 1 || run.every_time(host.tau, 1))
 		{
 			if (!run.cpu_only) 	{
 				cudaMemcpy(hostptr.T, devptr.T, host.Nbytes, cudaMemcpyDeviceToHost);
@@ -181,8 +193,8 @@ reset:
 				cudaMemcpy(hostptr.omega, devptr.omega, host.Nbytes, cudaMemcpyDeviceToHost);
 			}
 
-			Nu_y(host, hostptr.T, stat.NuTop, stat.NuDown);
-			Nu_y(host, hostptr.C, stat.ShrTop, stat.ShrDown);
+			Nu_y(host, hostptr.T, stat.NuTop, stat.NuDown, host.heatflux ? 1.0 : 0);
+			Nu_y(host, hostptr.C, stat.ShrTop, stat.ShrDown, host.heatflux ? 1.0 : 0);
 
 			stat.ksi_max = absmax(hostptr.ksi, N);
 			stat.ksi_sum = sum_abs(hostptr.ksi, N);
@@ -219,7 +231,7 @@ reset:
 
 			if (run.every_time(host.tau, 20))
 			{
-				write_fields2d(_str(host.Ra) + " " + _str(run.timeq), host,
+				write_fields2d(_path("fields"), _str(host.Ra) + " " + _str(run.timeq), host,
 					{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.buffer, hostptr.buffer2, hostptr.vx, hostptr.vy },
 					"ksi, omega, T, C, Tfull, Cfull, vx, vy");
 			}
@@ -231,13 +243,18 @@ reset:
 
 		if (run.stop_signal > 0)
 		{
-			if (run.call_i == 0)	w_final << "Ra, ksi_max, ksi_max2, omega_sum, C_sum, time(sec), t" << endl;
+			if (run.call_i == 0)	w_final << "Ra, ksi_max, ksi_max2, omega_sum, C_sum, time(sec), t, NuTop, NuDown, ShrTop, ShrDown" << endl;
 
 			w_final << host.Ra << " " << stat.ksi_max << " " << pow(stat.ksi_max, 2) << " " << stat.omega_sum << " " << stat.C_sum_signed
 				<< " " << ftimer.update_and_get("main") << " " << run.timeq
+				<< " " << stat.NuTop << " " << stat.NuDown << " " << stat.ShrTop << " " << stat.ShrDown
 				<< endl;
 			backup.save(run.iter, run.timeq, run.call_i, host,	{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C },	"ksi, omega, T, C");
 			
+			write_fields2d(_path("final"), _str(host.Ra) + " " + _str(run.timeq), host,
+				{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.buffer, hostptr.buffer2, hostptr.vx, hostptr.vy },
+				"ksi, omega, T, C, Tfull, Cfull, vx, vy");
+
 			if (run.stop_signal == 1)
 			{
 				run.iter = 0; run.timeq = 0; run.stop_signal = 0; 
