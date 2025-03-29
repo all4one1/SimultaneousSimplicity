@@ -5,6 +5,8 @@
 
 #include "types_project.h"
 #include "kernels/stream.h"
+#include "kernels/fv_projection.h"
+
 #include "CuPoisson/CuPoisson.h"
 #include "cuda_runtime.h"
 //#include <device_launch_parameters.h>
@@ -18,9 +20,9 @@ using std::endl;
 __constant__ Configuration dev;
 Configuration host;
 #include "init.h"
-#include "cpu_stream.h"
-#include "cpu_stream_impl.h"
-#include "CG.h"
+#include "CPUSolvers/cpu_stream.h"
+#include "CPUSolvers/cpu_stream_impl.h"
+//#include "CG.h"
 
 
 
@@ -78,7 +80,7 @@ int main(int argc, char** argv)
 	stream_cpu::CuPoisson cpuPoisson;
 	stream_cpu::ImplicitStream IS(N, host);
 
-	Trajectory tr(host, 1, run.read_database);
+	Trajectory tr(host, 1, run.read_database == 1);
 	tr.x[0] = 0.25;	tr.y[0] = 0.25;	tr.z[0] = 0;
 
 
@@ -117,7 +119,8 @@ int main(int argc, char** argv)
 	{
 		stream_cuda::disturb << <1, 1 >> > (10, 10, devptr.omega0, 0.1);
 		stream_cuda::disturb << <1, 1 >> > (10, 10, devptr.C0, 0.1);
-		hostptr.omega0[INDEX(10, 10, 0)] = 0.1;
+		//hostptr.omega0[INDEX(10, 10, 0)] = 0.1;
+		hostptr.omega0[INDEX(host.nx / 2, host.ny / 2, 0)] = 0.1;
 	}
 
 reset:
@@ -128,8 +131,9 @@ reset:
 	Checker check_ksi(&stat.ksi_sum, &run.timeq, Checker::ExitType::Relative, "ksi", 1e-5);
 	Checker check_omega(&stat.omega_sum, &run.timeq, Checker::ExitType::Relative, "omega");
 	Checker check_C(&stat.C_sum, &run.timeq, Checker::ExitType::Relative, "C");
-	
-	host.K = host.Ra == 0 ? 1 : host.Rad / host.Ra / host.Le;
+
+	if (host.Ra == 0) host.Ra += host.incr_parameter;
+	host.K = host.Rad / host.Ra / host.Le;
 	cudaMemcpyToSymbol(dev, &host, sizeof(Configuration), 0, cudaMemcpyHostToDevice);
 	check << <1, 1 >> > ();	cudaDeviceSynchronize(); //pause
 	
@@ -216,7 +220,7 @@ reset:
 			w_temporal << run.timeq << " " << ftimer.update_and_get("main") << " " << ftimer.get("calc")
 				<< " " << stat.ksi_max << " " << stat.omega_sum << " " << hostptr.ksi[INDEX(10, 10, 0)] << " " << hostptr.T[INDEX(10, 10, 0)] << " " << hostptr.C[INDEX(10, 10, 0)]
 				<< " " << stat.C_sum_signed 
-				<< " " << stat.NuTop << " " << stat.NuDown << " " << stat.ShrTop << " " << stat.ShrDown
+				<< " " << 0.5*(stat.NuTop + stat.NuDown) << " " << stat.NuDown << " " << 0.5*(stat.ShrTop + stat.ShrDown) << " " << stat.ShrDown
 				<< endl;
 
 			tr.trace_all(run.timeq, hostptr.vx, hostptr.vy, nullptr);
@@ -247,7 +251,7 @@ reset:
 
 			w_final << host.Ra << " " << stat.ksi_max << " " << pow(stat.ksi_max, 2) << " " << stat.omega_sum << " " << stat.C_sum_signed
 				<< " " << ftimer.update_and_get("main") << " " << run.timeq
-				<< " " << stat.NuTop << " " << stat.NuDown << " " << stat.ShrTop << " " << stat.ShrDown
+				<< " " << 0.5*(stat.NuTop + stat.NuDown) << " " << stat.NuDown << " " << 0.5*(stat.ShrTop + stat.ShrDown) << " " << stat.ShrDown
 				<< endl;
 			backup.save(run.iter, run.timeq, run.call_i, host,	{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C },	"ksi, omega, T, C");
 			
@@ -271,5 +275,10 @@ reset:
 		
 
 	}
+
+	//std::ofstream w("test.dat", std::ofstream::app);
+	//cout << ftimer.get("calc") << " " << host.N << " " << host.Lx << " " << run.timeq << endl;
+	//w << ftimer.get("calc") << " " << host.N << " " << host.Lx << " " << run.timeq << endl;
+
 	return 0;
 }

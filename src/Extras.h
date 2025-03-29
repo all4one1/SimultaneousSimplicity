@@ -643,11 +643,11 @@ void Nu_y(Configuration &c, double* f, double &Nu_top, double &Nu_down, double p
 
 	auto dy1 = [&](unsigned int l)
 	{
-		return (f[l + c.offset] - f[l]) / c.hy;
+		return abs((f[l + c.offset] - f[l])) / c.hy;
 	};
 	auto dy1_ = [&](unsigned int l)
 	{
-		return (f[l] - f[l - c.offset]) / c.hy;
+		return abs((f[l] - f[l - c.offset])) / c.hy;
 	};
 
 	unsigned int l;

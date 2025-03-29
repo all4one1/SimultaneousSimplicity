@@ -8,6 +8,7 @@
     <CudaCompile Include="src\CuPoisson\CudaReduction\CuReduction.cu">
       <Filter>CuPoisson</Filter>
     </CudaCompile>
+    <CudaCompile Include="src\kernels\fv_projection.cu" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="kernels">
@@ -39,13 +40,13 @@
     <ClInclude Include="src\Extras.h" />
     <ClInclude Include="src\ExtrasCuda.h" />
     <ClInclude Include="src\types_project.h" />
-    <ClInclude Include="src\cpu_stream.h">
+    <ClInclude Include="src\CPUSolvers\cpu_stream.h">
       <Filter>kernels</Filter>
     </ClInclude>
     <ClInclude Include="src\FromOuterSparse\SparseMatrix.h">
       <Filter>_Tools</Filter>
     </ClInclude>
-    <ClInclude Include="src\cpu_stream_impl.h">
+    <ClInclude Include="src\CPUSolvers\cpu_stream_impl.h">
       <Filter>kernels</Filter>
     </ClInclude>
     <ClInclude Include="src\globals.h" />
@@ -54,6 +55,9 @@
     <ClInclude Include="src\CuBiCGStab\src\ReductionM.h" />
     <ClInclude Include="src\CuBiCGStab\src\CudaExtras.h" />
     <ClInclude Include="src\CuBiCGStab\src\CuCG.h" />
+    <ClInclude Include="src\CPUSolvers\cpu_fv_projection.h" />
+    <ClInclude Include="src\kernels\fv_projection.h" />
+    <ClInclude Include="src\kernels\fv_fluxes.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FromOuterSparse\SparseMatrix.cpp">

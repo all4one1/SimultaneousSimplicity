@@ -1,4 +1,6 @@
-#pragma once
+//#pragma once
+#ifndef DERIV_H  
+#define DERIV_H 
 
 
 __device__  double dx1(unsigned int l, double* f) {
@@ -111,3 +113,6 @@ __device__ double VgradF(unsigned int l, double* f, double* vx, double* vy, doub
 {
 	return (vx[l] * dx1(l, f) + vy[l] * dy1(l, f) + vz[l] * dz1(l, f));
 }
+
+
+#endif // DERIV_H

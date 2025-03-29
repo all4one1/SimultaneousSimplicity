@@ -14,7 +14,8 @@ enum bc_type
 	closed = 0,
 	periodic = 1,
 	Dirichlet = 2,
-	Neumann = 3
+	Neumann = 3,
+	not_boundary = 4
 };
 
 enum class MathBoundary

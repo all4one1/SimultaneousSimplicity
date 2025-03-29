@@ -3,12 +3,13 @@
 //globals
 std::string folder_fields;
 std::string folder_final;
+std::string folder_lines;
 
 void init_parameters(Configuration& c)
 {
 	addFolder("fields", folder_fields);
 	addFolder("final", folder_final);
-
+	addFolder("lines", folder_lines);
 
 	ReadingFile par("parameters.txt");
 
@@ -22,6 +23,8 @@ void init_parameters(Configuration& c)
 	par.reading<double>(c.Lx, "Lx", 1.0);
 	par.reading<unsigned int>(c.nx, "nx", 20);
 	par.reading<unsigned int>(c.ny, "ny", 20);
+	c.nx = (unsigned int)c.Lx * c.nx;
+	c.ny = (unsigned int)c.Ly * c.ny;
 	par.reading<double>(c.Ra, "Ra", 5000);
 	par.reading<double>(c.Rad, "Rad", 5000);
 	par.reading<double>(c.Pr, "Pr", 10);

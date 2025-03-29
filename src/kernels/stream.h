@@ -22,3 +22,4 @@ namespace stream_cuda
 	__global__ void disturb(unsigned int i, unsigned int j, double* f, double val);
 	__global__ void concentration_2d(double* C, double* C0, double* ksi);
 }
+

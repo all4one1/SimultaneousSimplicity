@@ -82,6 +82,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="src\CuPoisson\CudaReduction\CuReduction.cu" />
+    <CudaCompile Include="src\kernels\fv_projection.cu" />
     <CudaCompile Include="src\kernels\stream.cu" />
     <CudaCompile Include="src\main.cpp" />
   </ItemGroup>
@@ -95,12 +96,15 @@
     <ClInclude Include="src\CuPoisson\CuPoisson.h" />
     <ClInclude Include="src\Extras.h" />
     <ClInclude Include="src\ExtrasCuda.h" />
-    <ClInclude Include="src\cpu_stream.h" />
+    <ClInclude Include="src\CPUSolvers\cpu_stream.h" />
     <ClInclude Include="src\FromOuterSparse\SparseMatrix.h" />
-    <ClInclude Include="src\cpu_stream_impl.h" />
+    <ClInclude Include="src\CPUSolvers\cpu_stream_impl.h" />
     <ClInclude Include="src\globals.h" />
+    <ClInclude Include="src\CPUSolvers\cpu_fv_projection.h" />
     <ClInclude Include="src\init.h" />
     <ClInclude Include="src\kernels\deriv.h" />
+    <ClInclude Include="src\kernels\fv_projection.h" />
+    <ClInclude Include="src\kernels\fv_fluxes.h" />
     <ClInclude Include="src\kernels\stream.h" />
     <ClInclude Include="src\types_project.h" />
   </ItemGroup>
