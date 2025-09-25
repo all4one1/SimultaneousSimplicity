@@ -17,7 +17,7 @@ namespace fv_projection_cuda
 
 		double rhs = 0.0;
 
-		if (i <= dev.nx && j <= dev.ny && l < dev.N)
+		if (i <= dev.nx && j <= dev.ny && l < dev.N) // ???
 		{
 			//x
 			if (i > 0)

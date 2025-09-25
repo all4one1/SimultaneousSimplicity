@@ -102,16 +102,25 @@ void init_parameters(Configuration& c)
 
 void init_fields(Configuration& c, Arrays& h, Arrays& d)
 {
+	double PI = acos(-1);
 	//for (unsigned int k = 0; k <= c.nz; k++) {
-	//	for (unsigned int j = 0; j <= c.ny; j++) {
-	//		for (unsigned int i = 0; i <= c.nx; i++)
-	//		{
-	//			unsigned int q = INDEX(i, j, k, l);
-	//			double y = c.hx * j;
-	//			h.T[q] = 1.0 - y;
-	//		}
-	//	}
+		for (unsigned int j = 0; j <= c.ny; j++) {
+			for (unsigned int i = 0; i <= c.nx; i++)
+			{
+				unsigned int q = i + host.offset * j;
+				double y = c.hy * j;
+				double x = c.hx * i;
+				h.C[q] = 0; // 1 - y;
+				h.T[q] = 0; // 1 - y;
+
+				//if (y > 0.5) h.C[q] += 0.5;
+				//else h.C[q] += -0.5;
+				h.ksi[q] = (1e-8) * sin(2 * PI * x / c.Lx) * sin(PI * y);
+			}
+		}
 	//}
 
-	//copyArrayFromHostToDevice({ d.T, d.T0 }, h.T, c.N);
+	copyArrayFromHostToDevice({ d.C, d.C0 }, h.C, c.N);
+	copyArrayFromHostToDevice({ d.T, d.T0 }, h.T, c.N);
+	copyArrayFromHostToDevice({ d.ksi, d.ksi0 }, h.ksi, c.N);
 }

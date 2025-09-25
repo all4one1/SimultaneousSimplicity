@@ -66,6 +66,11 @@ public:
 		}
 	}
 
+	//template <typename T>
+	//int reading(std::map<T, string> &m, T def_var = 0, T min = 0, T max = 0)
+	//{
+	//	return reading<T>(m.first, m.second, dev_var, min, max);
+	//}
 
 	template <typename T>
 	int reading(T& var, string parameter_name, T def_var = 0, T min = 0, T max = 0) {
@@ -825,12 +830,14 @@ struct Trajectory
 		y.resize(n);
 		z.resize(n);
 
-		if (append)
+
+		//if (append) // bugs!
+		if (0)
 		{
 			string str, substr;
 			stringstream ss;
 			
-			str = get_last_line("trajectory.dat");
+			str = get_last_line("trajectory.dat"); // bugs!
 			ss << str;
 
 			for (size_t i = 0; i < n; i++)

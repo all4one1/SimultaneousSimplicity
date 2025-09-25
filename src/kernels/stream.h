@@ -16,10 +16,16 @@ namespace stream_cuda
 {
 	__global__ void vorticity(double* omega_new, double* omega, double* ksi, double* T, double* C);
 	__global__ void make_velocity_from_stream(double* ksi, double* vx, double* vy);
+
 	__global__ void temperature_2d(double* T, double* T0, double* ksi);
 	__global__ void temperature_2d_flux(double* T, double* T0, double* ksi);
+	__global__ void temperature_2d_flux_full(double* T, double* T0, double* ksi);
+
+	__global__ void concentration_2d(double* C, double* C0, double* ksi);
+	__global__ void concentration_2d_full(double* C, double* C0, double* ksi);
+
 	__global__ void poisson_stream(double* ksi, double* ksi0, double* omega);
 	__global__ void disturb(unsigned int i, unsigned int j, double* f, double val);
-	__global__ void concentration_2d(double* C, double* C0, double* ksi);
+
 }
 

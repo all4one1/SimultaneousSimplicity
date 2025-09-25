@@ -259,6 +259,62 @@ namespace stream_cpu
             }
         }
     }
+    void temperature_2d_full(double* T, double* T0, double* ksi)
+    {
+        for (unsigned int j = 0; j <= host.ny; ++j) {
+            for (unsigned int i = 0; i <= host.nx; ++i) {
+                unsigned int l = i + host.offset * j;
+
+                if (l < host.N) {
+                    /* INNER */
+                    if (i > 0 && i < host.nx && j > 0 && j < host.ny) {
+                        T[l] = T0[l]
+                            + host.tau * (
+                                -dy1(l, ksi) * dx1(l, T0) + dx1(l, ksi) * dy1(l, T0)
+                                + (dx2(l, T0) + dy2(l, T0)) / host.Pr
+                                );
+                            continue;
+                    }
+                    else {
+                        if (j == 0) {
+                            T[l] = 1.0;
+                            continue;
+                        }
+                        else if (j == host.ny) {
+                            T[l] = 0.0;
+                            continue;
+                        }
+
+                        if (host.xbc == 0) { // closed
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                T[l] = dx1_eq_0_forward(l, T0);
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                T[l] = dx1_eq_0_back(l, T0);
+                                continue;
+                            }
+                        }
+                        else if (host.xbc == 1) { // periodic
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                unsigned int ll = host.nx - 1 + host.offset * j;
+                                T[l] = T0[ll];
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                unsigned int ll = 1 + host.offset * j;
+                                T[l] = T0[ll];
+                                continue;
+                            }
+                        }
+
+                        T[l] = 0;
+                    }
+                }
+            }
+        }
+    }
+
 
     void temperature_2d_flux(double* T, double* T0, double* ksi)
     {
@@ -284,6 +340,61 @@ namespace stream_cpu
                         }
                         else if (j == host.ny) {
                             T[l] = dy1_eq_0_down(l, T0);
+                            continue;
+                        }
+
+                        if (host.xbc == 0) { // closed
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                T[l] = dx1_eq_0_forward(l, T0);
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                T[l] = dx1_eq_0_back(l, T0);
+                                continue;
+                            }
+                        }
+                        else if (host.xbc == 1) { // periodic
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                unsigned int ll = host.nx - 1 + host.offset * j;
+                                T[l] = T0[ll];
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                unsigned int ll = 1 + host.offset * j;
+                                T[l] = T0[ll];
+                                continue;
+                            }
+                        }
+
+                        T[l] = 0;
+                    }
+                }
+            }
+        }
+    }
+    void temperature_2d_flux_full(double* T, double* T0, double* ksi)
+    {
+        for (unsigned int j = 0; j <= host.ny; ++j) {
+            for (unsigned int i = 0; i <= host.nx; ++i) {
+                unsigned int l = i + host.offset * j;
+
+                if (l < host.N) {
+                    /* INNER */
+                    if (i > 0 && i < host.nx && j > 0 && j < host.ny) {
+                        T[l] = T0[l]
+                            + host.tau * (
+                                -dy1(l, ksi) * dx1(l, T0) + dx1(l, ksi) * dy1(l, T0)
+                                + (dx2(l, T0) + dy2(l, T0)) / host.Pr
+                                );
+                            continue;
+                    }
+                    else {
+                        if (j == 0) {
+                            T[l] = dy1_eq_0_up(l, T0) - (-1 * host.hy * 2.0 / 3.0);
+                            continue;
+                        }
+                        else if (j == host.ny) {
+                            T[l] = dy1_eq_0_down(l, T0) + (-1 * host.hy * 2.0 / 3.0);
                             continue;
                         }
 
@@ -342,6 +453,61 @@ namespace stream_cpu
                         }
                         else if (j == host.ny) {
                             C[l] = dy1_eq_0_down(l, C0);
+                            continue;
+                        }
+
+                        if (host.xbc == 0) { // closed
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                C[l] = dx1_eq_0_forward(l, C0);
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                C[l] = dx1_eq_0_back(l, C0);
+                                continue;
+                            }
+                        }
+                        else if (host.xbc == 1) { // periodic
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                unsigned int ll = host.nx - 1 + host.offset * j;
+                                C[l] = C0[ll];
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                unsigned int ll = 1 + host.offset * j;
+                                C[l] = C0[ll];
+                                continue;
+                            }
+                        }
+
+                        C[l] = 0;
+                    }
+                }
+            }
+        }
+    }
+    void concentration_2d_full(double* C, double* C0, double* ksi)
+    {
+        for (unsigned int j = 0; j <= host.ny; ++j) {
+            for (unsigned int i = 0; i <= host.nx; ++i) {
+                unsigned int l = i + host.offset * j;
+
+                if (l < host.N) {
+                    /* INNER */
+                    if (i > 0 && i < host.nx && j > 0 && j < host.ny) {
+                        C[l] = C0[l]
+                            + host.tau * (
+                                -dy1(l, ksi) * dx1(l, C0) + dx1(l, ksi) * dy1(l, C0)
+                                + (dx2(l, C0) + dy2(l, C0)) / (host.Le * host.Pr)
+                                );
+                            continue;
+                    }
+                    else {
+                        if (j == 0) {
+                            C[l] = dy1_eq_0_up(l, C0) - (-1 * host.hy * 2.0 / 3.0);
+                            continue;
+                        }
+                        else if (j == host.ny) {
+                            C[l] = dy1_eq_0_down(l, C0) + (-1 * host.hy * 2.0 / 3.0);
                             continue;
                         }
 

@@ -58,6 +58,7 @@
     <ClInclude Include="src\CPUSolvers\cpu_fv_projection.h" />
     <ClInclude Include="src\kernels\fv_projection.h" />
     <ClInclude Include="src\kernels\fv_fluxes.h" />
+    <ClInclude Include="src\CuBiCGStab\CuCG.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FromOuterSparse\SparseMatrix.cpp">
