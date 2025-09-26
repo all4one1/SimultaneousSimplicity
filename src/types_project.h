@@ -1,28 +1,17 @@
 #pragma once
 
-enum class Side
-{
-	center,
-	west, east,
-	south, north,
-	front, back
+enum discretization { FV = 0, FD = 1 };
+enum bc_type { closed = 0, periodic = 1, Dirichlet = 2, Neumann = 3, not_boundary = 4 };
+enum domain_config { closed_box, open_tube, periodic_cell };
+enum field_name {
+	field_T, field_vx, field_vy, field_p, field_p_prime, field_vx_prime, field_vy_prime,
+	field_C, field_mu, field_C2, field_mu2, field_C3, field_mu3, field_stream, field_omega, field_count
 };
+enum enumside { west, east, south, north, front, back, inner };
 
-
-enum bc_type
-{
-	closed = 0,
-	periodic = 1,
-	Dirichlet = 2,
-	Neumann = 3,
-	not_boundary = 4
-};
-
-enum class MathBoundary
-{
-	Dirichlet,
-	Neumann
-};
+enum class MathBoundary { Dirichlet, Neumann, periodic, not_boundary, array_value, complex };
+enum class Side { center, west, east, south, north, front, back };
+enum class Component { x, y, z };
 
 
 struct Configuration
@@ -40,6 +29,8 @@ struct Configuration
 	unsigned int dim, nx, ny, nz, N, offset, offset2, Nbytes;
 	unsigned int heatflux;
 	bc_type xbc, ybc, zbc;
+	domain_config domain;
+	discretization disc;
 };
 
 struct PhysicalValues

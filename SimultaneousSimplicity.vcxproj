@@ -66,6 +66,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -106,6 +107,7 @@
     <ClInclude Include="src\kernels\deriv.h" />
     <ClInclude Include="src\kernels\fv_projection.h" />
     <ClInclude Include="src\kernels\fv_fluxes.h" />
+    <ClInclude Include="src\kernels\projection\Header.h" />
     <ClInclude Include="src\kernels\stream.h" />
     <ClInclude Include="src\types_project.h" />
   </ItemGroup>

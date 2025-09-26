@@ -25,6 +25,7 @@ void init_parameters(Configuration& c)
 	par.reading<unsigned int>(c.ny, "ny", 20);
 	c.nx = (unsigned int)c.Lx * c.nx;
 	c.ny = (unsigned int)c.Ly * c.ny;
+	c.nz = (unsigned int)c.Ly * c.nz;
 	par.reading<double>(c.Ra, "Ra", 5000);
 	par.reading<double>(c.Rad, "Rad", 5000);
 	par.reading<double>(c.Pr, "Pr", 10);
