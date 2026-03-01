@@ -30,6 +30,8 @@ void init_parameters(Configuration& c)
 	par.reading<double>(c.Rad, "Rad", 5000);
 	par.reading<double>(c.Pr, "Pr", 10);
 	par.reading<double>(c.Le, "Le", 130);
+	par.reading<double>(c.Sc, "Sc", 1000);
+	par.reading<double>(c.psi, "psi", -0.2);
 	par.reading<double>(c.K, "K", 0);
 	par.reading<double>(c.tau, "tau", 0.0001);
 	par.reading<double>(c.grav_y, "grav_y", 1.0);
@@ -116,7 +118,8 @@ void init_fields(Configuration& c, Arrays& h, Arrays& d)
 
 				//if (y > 0.5) h.C[q] += 0.5;
 				//else h.C[q] += -0.5;
-				h.ksi[q] = (1e-8) * sin(2 * PI * x / c.Lx) * sin(PI * y);
+				h.ksi[q] = (1e-6) * sin(2 * PI * x / c.Lx) * sin(PI * y);
+				//h.C0[q] = h.C[q] = (1e-4) * sin(2 * PI * x / c.Lx) * (1 - y) * c.psi;
 			}
 		}
 	//}

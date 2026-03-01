@@ -29,6 +29,20 @@ namespace stream_cpu
         return (4.0 * f[l - host.offset] - f[l - 2 * host.offset]) / 3.0;
     }
 
+    double dx1_forward(unsigned int l, double *f) {
+        return -0.5 * (3.0 * f[l] - 4.0 * f[l + 1] + f[l + 2]) / host.hx;
+    }
+    double dx1_back(unsigned int l, double *f) {
+        return  0.5 * (3.0 * f[l] - 4.0 * f[l - 1] + f[l - 2]) / host.hx;
+    }
+    double dy1_up(unsigned int l, double *f) {
+        return  -0.5 * (3.0 * f[l] - 4.0 * f[l + host.offset] + f[l + 2 * host.offset]) / host.hx;
+    }
+    double dy1_down(unsigned int l, double *f) {
+        return  0.5 * (3.0 * f[l] - 4.0 * f[l - host.offset] + f[l - 2 * host.offset]) / host.hx;
+    }
+
+
     #define VX_ dy1(l, ksi)
     #define VY_ -dx1(l, ksi)
 
@@ -94,6 +108,70 @@ namespace stream_cpu
             }
         }
     }
+
+    void vorticity_Soret(double *omega_new, double *omega, double *ksi, double *T, double *C)
+    {
+        auto InnerComputing = [&](unsigned int l) {
+            return omega[l] + host.tau * (
+                (dx1(l, ksi) * dy1(l, omega) - dy1(l, ksi) * dx1(l, omega)) //nonlinear term
+                + (dx2(l, omega) + dy2(l, omega)) /** host.Pr*/
+
+                + host.grav_y * host.Ra / host.Pr * (dx1(l, T) - host.density_x)
+                - host.grav_x * host.Ra / host.Pr * (dy1(l, T) - host.density_y)
+
+                + host.grav_y * host.Ra / host.Pr * (dx1(l, C) - host.density_x)
+                - host.grav_x * host.Ra / host.Pr * (dy1(l, C) - host.density_y)
+                );
+        };
+
+        for (unsigned int j = 0; j <= host.ny; ++j) {
+            for (unsigned int i = 0; i <= host.nx; ++i) {
+                unsigned int l = i + host.offset * j;
+
+                if (l < host.N) {
+                    /* INNER */
+                    if (i > 0 && i < host.nx && j > 0 && j < host.ny) {
+                        omega_new[l] = InnerComputing(l);
+                    }
+                    else {
+                        if (j == 0 && (i > 0 && i < host.nx)) {
+                            omega_new[l] = -0.5 / (host.hy * host.hy) * (8.0 * ksi[l + host.offset] - ksi[l + host.offset * 2]);
+                            continue;
+                        }
+                        else if (j == host.ny && (i > 0 && i < host.nx)) {
+                            omega_new[l] = -0.5 / (host.hy * host.hy) * (8.0 * ksi[l - host.offset] - ksi[l - host.offset * 2]);
+                            continue;
+                        }
+
+                        if (host.xbc == 0) { // closed
+                            if (i == 0 && (j > 0 && j < host.ny))
+                                omega_new[l] = -0.5 / (host.hx * host.hx) * (8.0 * ksi[l + 1] - ksi[l + 2]);
+                            if (i == host.nx && (j > 0 && j < host.ny))
+                                omega_new[l] = -0.5 / (host.hx * host.hx) * (8.0 * ksi[l - 1] - ksi[l - 2]);
+                            continue;
+                        }
+                        else if (host.xbc == 1) { // periodic
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                unsigned int ll = host.nx - 1 + host.offset * j;
+                                omega_new[l] = InnerComputing(ll);
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                unsigned int ll = 1 + host.offset * j;
+                                omega_new[l] = InnerComputing(ll);
+                                continue;
+                            }
+                        }
+                        {
+                            omega_new[l] = 0;
+                            omega_new[l] = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 
     void poisson_stream(double* ksi_new, double* ksi, double* omega)
     {
@@ -540,6 +618,64 @@ namespace stream_cpu
             }
         }
     }
+
+    void concentration_2d_full_Soret(double *C, double *C0, double *T0, double *ksi)
+    {
+        for (unsigned int j = 0; j <= host.ny; ++j) {
+            for (unsigned int i = 0; i <= host.nx; ++i) {
+                unsigned int l = i + host.offset * j;
+
+                if (l < host.N) {
+                    /* INNER */
+                    if (i > 0 && i < host.nx && j > 0 && j < host.ny) {
+                        C[l] = C0[l]
+                            + host.tau * (
+                                -dy1(l, ksi) * dx1(l, C0) + dx1(l, ksi) * dy1(l, C0)
+                                + ((dx2(l, C0) + dy2(l, C0))
+                                + (dx2(l, T0) + dy2(l, T0)) * host.psi) / host.Sc
+                                );
+                            continue;
+                    }
+                    else {
+                        if (j == 0) {
+                            C[l] = dy1_eq_0_up(l, C0) - host.psi * (dy1_up(l, T0));
+                            continue;
+                        }
+                        else if (j == host.ny) {
+                            C[l] = dy1_eq_0_down(l, C0) + host.psi * (dy1_down(l, T0));
+                            continue;
+                        }
+
+                        if (host.xbc == 0) { // closed
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                C[l] = dx1_eq_0_forward(l, C0) - host.psi * (dx1_forward(l, T0));
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                C[l] = dx1_eq_0_back(l, C0) + host.psi * (dx1_back(l, T0));
+                                continue;
+                            }
+                        }
+                        else if (host.xbc == 1) { // periodic
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                unsigned int ll = host.nx - 1 + host.offset * j;
+                                C[l] = C0[ll];
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                unsigned int ll = 1 + host.offset * j;
+                                C[l] = C0[ll];
+                                continue;
+                            }
+                        }
+
+                        C[l] = 0;
+                    }
+                }
+            }
+        }
+    }
+
 
     void swap_one(double* f_old, double* f_new)
     {

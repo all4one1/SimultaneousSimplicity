@@ -313,7 +313,7 @@ struct Checker
 	double relative = 1, absolute = 1;
 	double dif = 1, dif_rel = 1, dif2 = 0, dif_rel2 = 0;
 	double deriv = 0, deriv2 = 0;
-	size_t i_check = 0, check_limit = 10;
+	size_t i_check = 0, check_limit = 20;
 	bool ready_to_exit = false;
 
 	Checker(double* ptr, double* t_ptr, ExitType type_ = ExitType::Relative, std::string name_ = "Checker", double eps = -1)

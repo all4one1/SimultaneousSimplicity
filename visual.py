@@ -8,7 +8,7 @@ def read_field_data(filename):
     data = np.loadtxt(filename, skiprows=1)  # Пропускаем заголовок
     x = data[:, 0]
     y = data[:, 1]
-    field = data[:, 7]
+    field = data[:, 3]
 
     # Находим уникальные значения x и y для создания сетки
     unique_x = np.unique(x)

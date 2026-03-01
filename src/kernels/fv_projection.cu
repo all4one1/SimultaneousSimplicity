@@ -9,60 +9,60 @@
 
 namespace fv_projection_cuda
 {
-	__global__ void temperature_2d(double* T, double* T0, double* ksi)
-	{
-		unsigned int i = threadIdx.x + blockIdx.x * blockDim.x;
-		unsigned int j = threadIdx.y + blockIdx.y * blockDim.y;
-		unsigned int l = i + dev.offset * j;
+	//__global__ void temperature_2d(double* T, double* T0, double* ksi)
+	//{
+	//	unsigned int i = threadIdx.x + blockIdx.x * blockDim.x;
+	//	unsigned int j = threadIdx.y + blockIdx.y * blockDim.y;
+	//	unsigned int l = i + dev.offset * j;
 
-		double rhs = 0.0;
+	//	double rhs = 0.0;
 
-		if (i <= dev.nx && j <= dev.ny && l < dev.N) // ???
-		{
-			//x
-			if (i > 0)
-			{
-				rhs += west(T0, l);
-			}
-			else
-			{
-				if		(dev.xbc == closed)	  rhs += west(T0, l, 2, 0);
-				else if (dev.xbc == periodic) rhs += west(T0, l, 2, 0);
-			}
+	//	if (i <= dev.nx && j <= dev.ny && l < dev.N) // ???
+	//	{
+	//		//x
+	//		if (i > 0)
+	//		{
+	//			rhs += west(T0, l);
+	//		}
+	//		else
+	//		{
+	//			if		(dev.xbc == closed)	  rhs += west(T0, l, 2, 0);
+	//			else if (dev.xbc == periodic) rhs += west(T0, l, 2, 0);
+	//		}
 
-			if (i < dev.nx - 1)
-			{
-				rhs += east(T0, l);
-			}
-			else
-			{
-				if		(dev.xbc == closed)	  rhs += east(T0, l, 2, 0);
-				else if (dev.xbc == periodic) rhs += east(T0, l, 2, 0);
-			}
+	//		if (i < dev.nx - 1)
+	//		{
+	//			rhs += east(T0, l);
+	//		}
+	//		else
+	//		{
+	//			if		(dev.xbc == closed)	  rhs += east(T0, l, 2, 0);
+	//			else if (dev.xbc == periodic) rhs += east(T0, l, 2, 0);
+	//		}
 
-			//y
-			if (j > 0)
-			{
-				rhs += south(T0, l);
-			}
-			else
-			{
-				rhs += south(T0, l, 2, 0);
-			}
+	//		//y
+	//		if (j > 0)
+	//		{
+	//			rhs += south(T0, l);
+	//		}
+	//		else
+	//		{
+	//			rhs += south(T0, l, 2, 0);
+	//		}
 
-			if (j < dev.ny - 1)
-			{
-				rhs += north(T0, l);
-			}
-			else
-			{
-				rhs += north(T0, l, 2, 0);
-			}
+	//		if (j < dev.ny - 1)
+	//		{
+	//			rhs += north(T0, l);
+	//		}
+	//		else
+	//		{
+	//			rhs += north(T0, l, 2, 0);
+	//		}
 
-			T[l] = T0[l] + dev.tau / dev.dV * rhs;
-		}
-	}
-	
+	//		T[l] = T0[l] + dev.tau / dev.dV * rhs;
+	//	}
+	//}
+	//
 
 
 }

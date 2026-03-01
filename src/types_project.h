@@ -7,7 +7,7 @@ enum field_name {
 	field_T, field_vx, field_vy, field_p, field_p_prime, field_vx_prime, field_vy_prime,
 	field_C, field_mu, field_C2, field_mu2, field_C3, field_mu3, field_stream, field_omega, field_count
 };
-enum enumside { west, east, south, north, front, back, inner };
+//enum enumside { west, east, south, north, front, back, inner };
 
 enum class MathBoundary { Dirichlet, Neumann, periodic, not_boundary, array_value, complex };
 enum class Side { center, west, east, south, north, front, back };
@@ -23,7 +23,7 @@ struct Configuration
 	double vibr_x, vibr_y, vibr_z;
 	double grav_x, grav_y, grav_z;
 	double density_x, density_y, density_z;
-	double Sc11, Sc12, Sc21, Sc22, psi1, psi2, psiS, Q, Ra, Rad, Rav, K, Pr, Le;
+	double Sc, psi, Sc11, Sc12, Sc21, Sc22, psi1, psi2, psiS, Q, Ra, Rad, Rav, K, Pr, Le;
 	double Re, Pe, M, A, Ca, Gr;
 	double incr_parameter;
 	unsigned int dim, nx, ny, nz, N, offset, offset2, Nbytes;
