@@ -426,14 +426,15 @@ void pauseWithLineInfo(const std::string& file, int line)
 #define pause pauseWithLineInfo(__FILE__, __LINE__);
 
 
-void write_fields2d(std::string folder, std::string name, Configuration& c, std::vector<double*> v = {}, std::string head = "T, vx, vy, vz, C, Psi")
+void write_fields2d(std::string folder, std::string name, Configuration& c, std::vector<double*> v = {}, 
+	std::string head = "T, vx, vy, vz, C, Psi")
 {
 	string str = folder + name + ".txt";
 
 	std::ofstream all(str.c_str());
 
 	all << "x, y, " + head << endl;
-	//all << name << endl;
+	
 	//all << setprecision(16) << fixed;
 	for (unsigned int j = 0; j <= c.ny; j++) {
 		for (unsigned int i = 0; i <= c.nx; i++) {
@@ -467,6 +468,26 @@ void write_x_line(unsigned int j, std::string folder, std::string name, Configur
 	}
 }
 
+//std::string section_x_max(unsigned int j, Configuration &c, std::vector<double *> v)
+//{
+//	size_t n = v.size();
+//	std::vector<double> maxv(n);
+//
+//	for (unsigned int i = 0; i <= c.nx; i++)
+//	{
+//		for (size_t i = 0; i < n; i++)
+//		{
+//			maxv[i] = v[i][0];
+//		}
+//
+//		unsigned int l = i + c.offset * j;
+//		for (size_t i = 0; i < n; i++)
+//		{
+//			if (v[i][l] > maxv[i])
+//				maxv[i] = v[i][l];
+//		}
+//	}
+//}
 
 void deleteFilesInDirectory(const std::wstring& directoryPath) {
 	WIN32_FIND_DATAW findFileData;
@@ -601,6 +622,12 @@ std::string _str(int n, int pres = 5)
 	ss << std::setprecision(pres) << n;
 	return ss.str();
 }
+std::string _str(size_t n, int pres = 5)
+{
+	std::stringstream ss;
+	ss << std::setprecision(pres) << n;
+	return ss.str();
+}
 
 void velocity_stats(Configuration &c, double *vx, double *vy, StatValues &stat) {
 	double V = 0, VX = 0, VY = 0;
@@ -725,7 +752,7 @@ struct Backup
 		}
 	};
 
-	void read(size_t &iter, double &time, int &call_i, Configuration& c, std::vector<double*> v = {}, bool read_state = true)
+	int read(size_t &iter, double &time, int &call_i, Configuration& c, std::vector<double*> v = {}, bool read_state = true)
 	{
 		string str;
 		string substr;
@@ -737,6 +764,11 @@ struct Backup
 		else 
 			read.open(backup_name[1]);
 
+		if (!read.is_open())
+		{
+			std::cout << "no recovery file" << endl;
+			return 1;
+		}
 
 		getline(read, str); //skip header
 		getline(read, str); //read iter, time, Ra
@@ -768,6 +800,7 @@ struct Backup
 				}
 			}
 		}
+		return 0;
 	}
 
 	void read_fields_only(Configuration& c, std::vector<double*> v = {}, unsigned int skip_lines = 0)
@@ -831,22 +864,22 @@ struct Trajectory
 		z.resize(n);
 
 
-		//if (append) // bugs!
-		if (0)
+		if (append) 
+		//if (1)
 		{
 			string str, substr;
 			stringstream ss;
 			
-			str = get_last_line("trajectory.dat"); // bugs!
+			str = get_last_line("trajectory.dat"); 
 			ss << str;
 
 			for (size_t i = 0; i < n; i++)
 			{
+				ss >> substr; //skip time
 				ss >> substr; x[i] = atof(substr.c_str());
 				ss >> substr; y[i] = atof(substr.c_str());
 				ss >> substr; z[i] = atof(substr.c_str());
 			}
-
 			w.open("trajectory.dat", std::ofstream::app);
 		}
 		else
@@ -855,43 +888,46 @@ struct Trajectory
 		}
 	}
 
-	std::string get_last_line(const std::string& filename) {
-		std::ifstream file(filename, std::ios::ate | std::ios::binary);
+	std::string get_last_line(const std::string &filename)
+	{
+		std::ifstream file(filename, std::ios::binary | std::ios::ate);
+		if (!file)
+			return "";
 
-		if (!file.is_open()) {			std::cerr << "not opened!" << std::endl; return "";}
-
-		std::streampos end_pos = file.tellg();
-		if (end_pos == std::streampos(0)) {	return ""; } //empty
+		std::streamoff pos = file.tellg();
+		if (pos == 0)
+			return "";
 
 		char ch;
-		std::string lastLine;
-		bool lineFound = false;
+		std::string line;
 
-		// Начинаем с последнего символа перед EOF
-		std::streampos pos = end_pos - std::streamoff(1);
+		pos--;
 
-		while (pos >= std::streampos(0)) {
+		// пропустить \n в конце файла
+		while (pos >= 0) {
 			file.seekg(pos);
 			file.get(ch);
 
-			if (ch == '\n') {
-				if (lineFound) {
-					break;  // нашли начало последней строки
-				}
-			}
-			else {
-				lineFound = true;
-				lastLine.insert(lastLine.begin(), ch);
-			}
-
-			if (pos == 0) {
+			if (ch != '\n' && ch != '\r')
 				break;
-			}
-			pos -= 1;
+
+			pos--;
 		}
 
-		file.close();
-		return lastLine;
+		while (pos >= 0) {
+			file.seekg(pos);
+			file.get(ch);
+
+			if (ch == '\n')
+				break;
+
+			line.push_back(ch);
+			pos--;
+		}
+
+		std::reverse(line.begin(), line.end());
+
+		return line;
 	}
 
 	void trace_all(double t, double *vx, double *vy, double *vz = nullptr)
@@ -1004,12 +1040,12 @@ struct Trajectory
 			z = z + VZ * c.tau;
 		}
 
-		if (x < 0) x = x + c.Lx;
-		if (x > c.hx * c.nx) x = x - c.Lx;
+		if (x < 0 + c.hx) x = x + c.Lx;
+		if (x > c.Lx - c.hx) x = x - c.Lx;
 		if (y < 0) y = y + c.Ly;
 		if (y > c.hy * c.ny) y = y - c.Ly;
-		if (z < 0) z = z + c.Lz;
-		if (z > c.hz * c.nz) z = z - c.Lz;
+		if (z < 0 + c.hz) z = z + c.Lz;
+		if (z > c.Lz - c.hz) z = z - c.Lz;
 	}
 };
 

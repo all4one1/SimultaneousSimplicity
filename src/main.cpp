@@ -29,7 +29,7 @@ Configuration host;
 
 struct RUN_STATE
 {
-	int stop_signal = 0, read_database = 0, call_i = 0, cpu_only = 0;
+	int stop_signal = 0, read_database = 0, call_i = 0, call_max = 1000, cpu_only = 0;
 	double timeq = 0, time_sec = 0, timeq_limit = 10000, timeq_minimal = 0;
 	size_t iter = 0;
 	std::string note = "";
@@ -48,10 +48,11 @@ struct RUN_STATE
 int main(int argc, char** argv)
 {
 	ReadingFile par("parameters.txt");
-	par.reading<int>(run.read_database, "continue", 0);
+	par.reading<int>(run.read_database, "continue", 0); // 0 - full start, 1 - full continue, 2 - read fields, state is clear
 	par.reading<int>(run.cpu_only, "cpu", 0);
 	par.reading<double>(run.timeq_limit, "time_limit", 20000);
 	par.reading<double>(run.timeq_minimal, "time_minimal", 0);
+	par.reading<int>(run.call_max, "call_max", 100);
 	par.reading_string(run.note, "note", "");
 
 	GPU_ gpu(0);
@@ -82,32 +83,37 @@ int main(int argc, char** argv)
 	stream_cpu::CuPoisson cpuPoisson;
 	stream_cpu::ImplicitStream IS(N, host);
 
-	Trajectory tr(host, 1, run.read_database == 1);
-	if (run.read_database == 0) { tr.x[0] = 0.25;	tr.y[0] = 0.25;	tr.z[0] = 0; }
-
 	if (run.read_database)
 	{
-		backup.read(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C }, run.read_database == 1);
-		copyArrayFromHostToDevice({ devptr.T, devptr.T0 }, hostptr.T, host.N);
-		copyArrayFromHostToDevice({ devptr.C, devptr.C0 }, hostptr.C, host.N);
-		copyArrayFromHostToDevice({ devptr.ksi, devptr.ksi0 }, hostptr.ksi, host.N);
-		copyArrayFromHostToDevice({ devptr.omega, devptr.omega0 }, hostptr.omega, host.N);
-		if (run.cpu_only)
+		int error = backup.read(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C }, run.read_database == 1);
+
+		if (error == 0)
 		{
-			for (unsigned int l = 0; l < host.N; l++)
+			copyArrayFromHostToDevice({ devptr.T, devptr.T0 }, hostptr.T, host.N);
+			copyArrayFromHostToDevice({ devptr.C, devptr.C0 }, hostptr.C, host.N);
+			copyArrayFromHostToDevice({ devptr.ksi, devptr.ksi0 }, hostptr.ksi, host.N);
+			copyArrayFromHostToDevice({ devptr.omega, devptr.omega0 }, hostptr.omega, host.N);
+			if (run.cpu_only)
 			{
-				hostptr.ksi0[l] = hostptr.ksi[l];
-				hostptr.omega0[l] = hostptr.omega[l];
-				hostptr.T0[l] = hostptr.T[l];
-				hostptr.C0[l] = hostptr.C[l];
- 			}
+				for (unsigned int l = 0; l < host.N; l++)
+				{
+					hostptr.ksi0[l] = hostptr.ksi[l];
+					hostptr.omega0[l] = hostptr.omega[l];
+					hostptr.T0[l] = hostptr.T[l];
+					hostptr.C0[l] = hostptr.C[l];
+				}
+			}
+			auto open_type = run.read_database == 1 ? std::ofstream::app : std::ofstream::out;
+			w_final.open("w_final.dat", open_type);
+			w_temporal.open("w_temporal.dat", open_type);
+			if (run.read_database == 2) deleteFilesInDirectory(L"fields");
 		}
-		auto open_type = run.read_database == 1 ? std::ofstream::app : std::ofstream::out;
-		w_final.open("w_final.dat", open_type);
-		w_temporal.open("w_temporal.dat", open_type);
-		if (run.read_database == 2) deleteFilesInDirectory(L"fields");
+		if (error == 1)
+		{
+			run.read_database = 0;
+		}
 	}
-	else
+	if (!run.read_database)
 	{
 		w_final.open("w_final.dat");
 		w_temporal.open("w_temporal.dat");
@@ -115,19 +121,14 @@ int main(int argc, char** argv)
 		init_fields(host, hostptr, devptr);
 	}
 
-	if (run.read_database == 0)
-	{
-		//stream_cuda::disturb << <1, 1 >> > (10, 10, devptr.omega0, 0.1);
-		//stream_cuda::disturb << <1, 1 >> > (10, 10, devptr.C0, 0.1);
-		//hostptr.omega0[INDEX(10, 10, 0)] = 0.1;
-		//hostptr.C0[INDEX(host.nx/2, host.ny - 1, 0)] = 0.0001;
-		//hostptr.omega0[INDEX(host.nx / 2, host.ny / 2, 0)] = 0.1;
+	Trajectory tr(host, 1, run.read_database == 1);
+	if (run.read_database == 0) { tr.x[0] = 0.2; tr.y[0] = 0.2; tr.z[0] = 0; }
 
-		//stream_cuda::disturb << <1, 1 >> > (host.nx / 2 - 1, host.ny - 1, devptr.T0, 0.001);
-	}
+
+
 
 reset:
-	if (run.call_i >= 1000) return 0;
+	if (run.call_i >= run.call_max) return 0;
 	if (run.call_i > 0 && run.iter == 0)	host.Ra += host.incr_parameter;
 	
 
@@ -142,6 +143,8 @@ reset:
 	
 	ftimer.start("main");
 
+	//cout << host.grav_x << endl;
+	//pause
 	while (run.stop_signal == 0)
 	{
 		run.iter++;
@@ -162,22 +165,23 @@ reset:
 			stream_poisson.solve();
 		}
 
-		if (run.cpu_only == 1) {
+		if (run.cpu_only == 1) // explicit
+		{
 			//stream_cpu::vorticity(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
-			stream_cpu::vorticity_Soret(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
 			//stream_cpu::temperature_2d(hostptr.T, hostptr.T0, hostptr.ksi);
 			//stream_cpu::temperature_2d_flux(hostptr.T, hostptr.T0, hostptr.ksi);
 			//stream_cpu::concentration_2d(hostptr.C, hostptr.C0, hostptr.ksi);
-			
 			//stream_cpu::temperature_2d_full(hostptr.T, hostptr.T0, hostptr.ksi);
-			stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
 			//stream_cpu::concentration_2d_full(hostptr.C, hostptr.C0, hostptr.ksi);
+
+			stream_cpu::vorticity_Soret(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
+			stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
 			stream_cpu::concentration_2d_full_Soret(hostptr.C, hostptr.C0, hostptr.T0, hostptr.ksi);
 
 			stream_cpu::swap_three(hostptr.omega0, hostptr.omega, hostptr.T0, hostptr.T, hostptr.C0, hostptr.C);
 			cpuPoisson.solve(hostptr.ksi, hostptr.ksi0, hostptr.omega);
 		}
-		if (run.cpu_only == 2)
+		if (run.cpu_only == 2) //implicit
 		{
 			stream_cpu::transform_to_velocity(host, hostptr.ksi, hostptr.vx, hostptr.vy);
 
@@ -199,8 +203,8 @@ reset:
 		
 		// OUTPUT
 		if (run.iter == 1 
-			|| (run.every_time(host.tau, 1.0) && run.timeq < 10000) 
-			|| (run.every_time(host.tau, 10.0) && run.timeq >= 10000))
+			|| (run.every_time(host.tau, 1.0)  && run.timeq < 1000) 
+			|| (run.every_time(host.tau, 10.0) && run.timeq >= 1000))
 		{
 			if (!run.cpu_only) 	{
 				cudaMemcpy(hostptr.T, devptr.T, host.Nbytes, cudaMemcpyDeviceToHost);
@@ -252,7 +256,8 @@ reset:
 			{
 				write_fields2d(_path("fields"), _str(host.Ra) + " " + _str(run.timeq), host,
 					{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.buffer, hostptr.buffer2, hostptr.vx, hostptr.vy },
-					"ksi, omega, T, C, Tfull, Cfull, vx, vy");
+					"ksi, omega, T, C, Tfull, Cfull, vx, vy"
+				);
 			}
 			if (run.every_time(host.tau, 20))
 			{
@@ -292,9 +297,9 @@ reset:
 	
 
 	
-	std::ofstream w("test.dat", std::ofstream::app);
-	cout << ftimer.get("calc") << " " << host.N << " " << host.Lx << " " << run.timeq << endl;
-	w << ftimer.get("calc") << " " << host.N << " " << host.Lx << " " << run.timeq << endl;
+	//std::ofstream w("test.dat", std::ofstream::app);
+	//cout << ftimer.get("calc") << " " << host.N << " " << host.Lx << " " << run.timeq << endl;
+	//w << ftimer.get("calc") << " " << host.N << " " << host.Lx << " " << run.timeq << endl;
 
 	return 0;
 }

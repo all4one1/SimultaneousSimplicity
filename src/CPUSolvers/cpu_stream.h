@@ -116,11 +116,11 @@ namespace stream_cpu
                 (dx1(l, ksi) * dy1(l, omega) - dy1(l, ksi) * dx1(l, omega)) //nonlinear term
                 + (dx2(l, omega) + dy2(l, omega)) /** host.Pr*/
 
-                + host.grav_y * host.Ra / host.Pr * (dx1(l, T) - host.density_x)
-                - host.grav_x * host.Ra / host.Pr * (dy1(l, T) - host.density_y)
+                + host.grav_y * host.Ra / host.Pr * (dx1(l, T) /*- host.density_x*/)
+                - host.grav_x * host.Ra / host.Pr * (dy1(l, T) /*- host.density_y*/)
 
-                + host.grav_y * host.Ra / host.Pr * (dx1(l, C) - host.density_x)
-                - host.grav_x * host.Ra / host.Pr * (dy1(l, C) - host.density_y)
+                + host.grav_y * host.Ra / host.Pr * (dx1(l, C) /*- host.density_x*/)
+                - host.grav_x * host.Ra / host.Pr * (dy1(l, C) /*- host.density_y*/)
                 );
         };
 
@@ -638,21 +638,21 @@ namespace stream_cpu
                     }
                     else {
                         if (j == 0) {
-                            C[l] = dy1_eq_0_up(l, C0) - host.psi * (dy1_up(l, T0));
+                            C[l] = dy1_eq_0_up(l, C0) - host.psi * (dy1_up(l, T0) * host.hy * 2.0 / 3.0);
                             continue;
                         }
                         else if (j == host.ny) {
-                            C[l] = dy1_eq_0_down(l, C0) + host.psi * (dy1_down(l, T0));
+                            C[l] = dy1_eq_0_down(l, C0) + host.psi * (dy1_down(l, T0) * host.hy * 2.0 / 3.0);
                             continue;
                         }
 
                         if (host.xbc == 0) { // closed
                             if (i == 0 && (j > 0 && j < host.ny)) {
-                                C[l] = dx1_eq_0_forward(l, C0) - host.psi * (dx1_forward(l, T0));
+                                C[l] = dx1_eq_0_forward(l, C0) - host.psi * (dx1_forward(l, T0) * host.hx * 2.0 / 3.0);
                                 continue;
                             }
                             if (i == host.nx && (j > 0 && j < host.ny)) {
-                                C[l] = dx1_eq_0_back(l, C0) + host.psi * (dx1_back(l, T0));
+                                C[l] = dx1_eq_0_back(l, C0) + host.psi * (dx1_back(l, T0) * host.hx * 2.0 / 3.0);
                                 continue;
                             }
                         }
