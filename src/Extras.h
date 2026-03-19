@@ -930,18 +930,25 @@ struct Trajectory
 		return line;
 	}
 
-	void trace_all(double t, double *vx, double *vy, double *vz = nullptr)
+	void trace_all(double *vx, double *vy, double *vz = nullptr)
 	{
 		for (size_t p = 0; p < n; p++)
 		{
 			trace(x[p], y[p], z[p], vx, vy, vz, c);
-			w << std::setprecision(12);
-			w << t << " " << x[p] << " " << y[p] << " ";
-			if (vz != nullptr) w << z[p] << " ";
+		}
+	}
+
+	void write(double t)
+	{
+		w << std::setprecision(12);
+		w << t;
+		for (size_t p = 0; p < n; p++)
+		{
+			w << " " << x[p] << " " << y[p] << " " << z[p];
 		}
 		w << endl;
 	}
-	
+
 	void trace(double& x, double& y, double& z, double* vx, double* vy, double* vz, Configuration& c)
 	{
 		unsigned int i1, j1, k1, i2, j2, k2;

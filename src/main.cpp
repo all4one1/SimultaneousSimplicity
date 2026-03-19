@@ -202,6 +202,7 @@ reset:
 		ftimer.end("calc");
 		
 		// OUTPUT
+		tr.trace_all(hostptr.vx, hostptr.vy, nullptr);
 		if (run.iter == 1 
 			|| (run.every_time(host.tau, 1.0)  && run.timeq < 1000) 
 			|| (run.every_time(host.tau, 10.0) && run.timeq >= 1000))
@@ -242,8 +243,7 @@ reset:
 				<< " " << hostptr.C[INDEX(host.nx / 2, host.ny - 1, 0)] - hostptr.C[INDEX(host.nx / 2, 1, 0)]
 				<< endl;
 
-			tr.trace_all(run.timeq, hostptr.vx, hostptr.vy, nullptr);
-
+			tr.write(run.timeq);
 
 			if (run.timeq >= run.timeq_minimal)
 			{
