@@ -41,7 +41,9 @@ struct PhysicalValues
 struct StatValues 
 {
 	double ksi_max = 0, ksi_sum = 0, omega_max = 0, omega_sum = 0, C_sum = 0, C_sum_signed = 0;
+	double ksi_incr = 0;
 	double NuTop = 0, NuDown = 0, ShrTop = 0, ShrDown = 0;
+	double Nu = 0, Shr = 0;
 	double Vmax = 0, Vx = 0, Vy = 0, Ek = 0;
 	double Cu = 0, Pe = 0;
 };

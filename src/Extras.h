@@ -21,6 +21,25 @@ using std::cout;
 using std::endl;
 
 
+struct RUN_STATE
+{
+	int stop_signal = 0, read_recovery = 0, compute_mode = 0;
+	int call_i = 0, call_max = 1000, full_reset = 0;
+	double timeq = 0, time_sec = 0, timeq_limit = 10000, timeq_minimal = 0;
+	size_t iter = 0;
+	std::string note = "";
+	int test = 0;
+	bool every(int n) { return iter % n == 0; }
+	bool every_time(double tau, double t) { int tt = (int)(ceil(1.0 / tau) * t); return iter % (tt) == 0; }
+	void reset()
+	{
+		iter = 0;
+		timeq = 0;
+		stop_signal = 0;
+	}
+};
+
+
 struct ReadingFile
 {
 private:
@@ -302,7 +321,7 @@ size_t allocate_host_arrays(std::vector<double**> v, size_t N)
 
 struct Checker
 {
-	enum class ExitType { Relative, Absolute } type;
+	enum class ExitType { Relative, Absolute, NoExit } type;
 	std::string name;
 	std::vector<double> v, t;
 	double* binded_value = nullptr, * binded_time = nullptr;
@@ -312,7 +331,9 @@ struct Checker
 	double eps_default = 1e-6;
 	double relative = 1, absolute = 1;
 	double dif = 1, dif_rel = 1, dif2 = 0, dif_rel2 = 0;
+	double ln = 1, ln_time = 1;
 	double deriv = 0, deriv2 = 0;
+	double dt = 1;
 	size_t i_check = 0, check_limit = 20;
 	bool ready_to_exit = false;
 
@@ -349,19 +370,18 @@ struct Checker
 
 		dif = v[i2] - v[i1];
 		dif_rel = (v[i2] - v[i1]) / v[i1];
-		//dif2 = (v[i2] - v[i1]) - (v[i1] - v[i0]);
-		//dif_rel2 = ((v[i2] - v[i1]) - (v[i1] - v[i0])) / (v[i2] - v[i1]);
-		double dt = t[i2] - t[i1];
+
+		dt = t[i2] - t[i1];
 		deriv = (v[i2] - v[i1]) / dt;
 		deriv2 = (v[i2] - 2.0 * v[i1] + v[i0]) / (dt * dt);
 
+		ln = log(v[i2] / v[i1]);
+		ln_time = ln / dt;
 
 		absolute = abs(dif);
 		relative = abs(dif / v[i1]);
 
 		check();
-		//cout << iter << ": " << i2 << " " << i1 << " " << i0 << endl;
-		//cout << iter << ": " << v[i2] << " " << v[i1] << " " << v[i0] << endl;
 	}
 
 	void update(double& val, double& t)
@@ -373,10 +393,11 @@ struct Checker
 
 	bool check(double eps = -1)
 	{
-		update();
+		update(); //???
 		if (eps < 0) eps = eps_default;
-		if (relative < eps && type == ExitType::Relative
-			|| absolute < eps && type == ExitType::Absolute)
+		if (type == ExitType::Relative && relative < eps ||
+			type == ExitType::Absolute && absolute < eps ||
+			type == ExitType::NoExit && false)
 		{
 			i_check++;
 			cout << name + ",i= " << i_check << endl;
@@ -695,6 +716,26 @@ void Nu_y(Configuration &c, double* f, double &Nu_top, double &Nu_down, double p
 	Nu_top = Nu_top / c.Lx + plus_const;
 
 }
+void Nu_y_for_fixed_flux(Configuration &c, double *f, double &Nu_) {
+	Nu_ = 0;
+	unsigned int l;
+	double s_top = 0, s_bottom = 0;
+	for (unsigned int i = 1; i <= c.nx - 1; i++)
+	{
+		l = i + c.offset * (c.ny);
+		s_top += f[l];
+
+		l = i;
+		s_bottom += f[l];
+	}
+	s_top = s_top / (c.nx - 1);
+	s_bottom = s_bottom / (c.nx - 1);
+
+	Nu_ = 1.0 / (s_bottom - s_top);
+}
+
+
+
 
 
 struct Backup

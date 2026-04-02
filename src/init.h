@@ -113,13 +113,16 @@ void init_fields(Configuration& c, Arrays& h, Arrays& d)
 				unsigned int q = i + host.offset * j;
 				double y = c.hy * j;
 				double x = c.hx * i;
-				h.C[q] = 0; // 1 - y;
-				h.T[q] = 0; // 1 - y;
+				h.ksi[q] = h.ksi0[q] = 0;
+				h.omega[q] = h.omega0[q] = 0;
+				h.C[q] = h.C0[q] = 0; // 1 - y;
+				h.T[q] = h.T0[q] = 0; // 1 - y;
 
 				//if (y > 0.5) h.C[q] += 0.5;
 				//else h.C[q] += -0.5;
 				//h.ksi[q] = (1e-6) * sin(2 * PI * x / c.Lx) * sin(PI * y);
-				h.C0[q] = h.C[q] = (1e-5) * sin(2 * PI * x / c.Lx) * (1 - y) * c.psi;
+				h.C0[q] = h.C[q] = (1e-6) * sin(2 * PI * x / c.Lx) * (-y);
+				//h.C0[q] = h.C[q] = (1e-5) * sin(2 * PI * x / c.Lx) * (1 - y) * c.psi;
 			}
 		}
 	//}

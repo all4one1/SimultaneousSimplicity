@@ -27,32 +27,18 @@ Configuration host;
 
 //#include "CuBiCGStab/CuCG.h"
 
-struct RUN_STATE
-{
-	int stop_signal = 0, read_database = 0, call_i = 0, call_max = 1000, cpu_only = 0;
-	double timeq = 0, time_sec = 0, timeq_limit = 10000, timeq_minimal = 0;
-	size_t iter = 0;
-	std::string note = "";
-	int test = 0;
-	bool every(int n) { return iter % n == 0; }
-	bool every_time(double tau, double t) {int tt = (int)(ceil(1.0 / tau) * t); return iter % (tt) == 0;}
-	void reset()
-	{
-		iter = 0;
-		timeq = 0;
-		stop_signal = 0;
-	}
-} run;
 
+RUN_STATE run;
 
 int main(int argc, char** argv)
 {
 	ReadingFile par("parameters.txt");
-	par.reading<int>(run.read_database, "continue", 0); // 0 - full start, 1 - full continue, 2 - read fields, state is clear
-	par.reading<int>(run.cpu_only, "cpu", 0);
+	par.reading<int>(run.read_recovery, "continue", 0); // 0 - full start, 1 - full continue, 2 - read fields, state is clear
+	par.reading<int>(run.compute_mode, "cpu", 1);
 	par.reading<double>(run.timeq_limit, "time_limit", 20000);
 	par.reading<double>(run.timeq_minimal, "time_minimal", 0);
 	par.reading<int>(run.call_max, "call_max", 100);
+	par.reading<int>(run.full_reset, "full_reset", 0);
 	par.reading_string(run.note, "note", "");
 
 	GPU_ gpu(0);
@@ -77,15 +63,16 @@ int main(int argc, char** argv)
 	
 	CuPoisson stream_poisson;
 	void* args[] = { &devptr.ksi, &devptr.ksi0, &devptr.omega };
-	stream_poisson.set_kernel(stream_cuda::poisson_stream, args, KERNEL2D);
-	stream_poisson.set_main_field(devptr.ksi, devptr.ksi0, host.N);
+	CuPoisson poisson(N, stream_cuda::poisson_stream, args, KERNEL2D);
+	//stream_poisson.set_kernel(stream_cuda::poisson_stream, args, KERNEL2D);
+	//stream_poisson.set_main_field(devptr.ksi, devptr.ksi0, host.N);
 
 	stream_cpu::CuPoisson cpuPoisson;
 	stream_cpu::ImplicitStream IS(N, host);
 
-	if (run.read_database)
+	if (run.read_recovery)
 	{
-		int error = backup.read(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C }, run.read_database == 1);
+		int error = backup.read(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C }, run.read_recovery == 1);
 
 		if (error == 0)
 		{
@@ -93,7 +80,7 @@ int main(int argc, char** argv)
 			copyArrayFromHostToDevice({ devptr.C, devptr.C0 }, hostptr.C, host.N);
 			copyArrayFromHostToDevice({ devptr.ksi, devptr.ksi0 }, hostptr.ksi, host.N);
 			copyArrayFromHostToDevice({ devptr.omega, devptr.omega0 }, hostptr.omega, host.N);
-			if (run.cpu_only)
+			if (run.compute_mode > 0)
 			{
 				for (unsigned int l = 0; l < host.N; l++)
 				{
@@ -103,17 +90,17 @@ int main(int argc, char** argv)
 					hostptr.C0[l] = hostptr.C[l];
 				}
 			}
-			auto open_type = run.read_database == 1 ? std::ofstream::app : std::ofstream::out;
+			auto open_type = run.read_recovery == 1 ? std::ofstream::app : std::ofstream::out;
 			w_final.open("w_final.dat", open_type);
 			w_temporal.open("w_temporal.dat", open_type);
-			if (run.read_database == 2) deleteFilesInDirectory(L"fields");
+			if (run.read_recovery == 2) deleteFilesInDirectory(L"fields");
 		}
 		if (error == 1)
 		{
-			run.read_database = 0;
+			run.read_recovery = 0;
 		}
 	}
-	if (!run.read_database)
+	if (!run.read_recovery)
 	{
 		w_final.open("w_final.dat");
 		w_temporal.open("w_temporal.dat");
@@ -121,30 +108,31 @@ int main(int argc, char** argv)
 		init_fields(host, hostptr, devptr);
 	}
 
-	Trajectory tr(host, 1, run.read_database == 1);
-	if (run.read_database == 0) { tr.x[0] = 0.2; tr.y[0] = 0.2; tr.z[0] = 0; }
-
-
-
+	Trajectory tr(host, 1, run.read_recovery == 1);
+	if (run.read_recovery == 0) { tr.x[0] = 0.2; tr.y[0] = 0.2; tr.z[0] = 0; }
 
 reset:
 	if (run.call_i >= run.call_max) return 0;
 	if (run.call_i > 0 && run.iter == 0)	host.Ra += host.incr_parameter;
-	
+	if (run.full_reset == 1 && run.iter == 0)  init_fields(host, hostptr, devptr);
+
 
 	Checker check_ksi(&stat.ksi_sum, &run.timeq, Checker::ExitType::Relative, "ksi", 1e-6);
 	Checker check_omega(&stat.omega_sum, &run.timeq, Checker::ExitType::Relative, "omega");
 	Checker check_C(&stat.C_sum, &run.timeq, Checker::ExitType::Relative, "C");
 
+	Checker check_ksi_max(&stat.ksi_max, &run.timeq, Checker::ExitType::NoExit, "ksimax");
+	Checker check_Vmax(&stat.Vmax, &run.timeq, Checker::ExitType::NoExit, "check_Vmax");
+	Checker check_Ek(&stat.Ek, &run.timeq, Checker::ExitType::NoExit, "check_Ek");
+	
+
 	if (host.Ra == 0) host.Ra += host.incr_parameter;
 	host.K = host.Rad / host.Ra / host.Le;
 	cudaMemcpyToSymbol(dev, &host, sizeof(Configuration), 0, cudaMemcpyHostToDevice);
-	check << <1, 1 >> > ();	cudaDeviceSynchronize(); //pause
+	//check << <1, 1 >> > ();	cudaDeviceSynchronize(); //pause
 	
 	ftimer.start("main");
 
-	//cout << host.grav_x << endl;
-	//pause
 	while (run.stop_signal == 0)
 	{
 		run.iter++;
@@ -154,7 +142,7 @@ reset:
 
 		ftimer.start("calc");
 
-		if (!run.cpu_only)	{
+		if (run.compute_mode == 0)	{
 			stream_cuda::vorticity << <KERNEL2D >> > (devptr.omega, devptr.omega0, devptr.ksi, devptr.T, devptr.C);
 			//stream_cuda::temperature_2d << <KERNEL2D >> > (devptr.T, devptr.T0, devptr.ksi);
 			//stream_cuda::temperature_2d_flux << <KERNEL2D >> > (devptr.T, devptr.T0, devptr.ksi);
@@ -162,26 +150,27 @@ reset:
 			stream_cuda::temperature_2d_flux_full << <KERNEL2D >> > (devptr.T, devptr.T0, devptr.ksi);
 			//stream_cuda::concentration_2d_full << <KERNEL2D >> > (devptr.C, devptr.C0, devptr.ksi);
 			swap_three << < KERNEL1D >> > (devptr.omega0, devptr.omega, devptr.T0, devptr.T, devptr.C0, devptr.C);
-			stream_poisson.solve();
+			poisson.solve();
 		}
 
-		if (run.cpu_only == 1) // explicit
+		if (run.compute_mode == 1) // explicit
 		{
-			//stream_cpu::vorticity(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
-			//stream_cpu::temperature_2d(hostptr.T, hostptr.T0, hostptr.ksi);
-			//stream_cpu::temperature_2d_flux(hostptr.T, hostptr.T0, hostptr.ksi);
-			//stream_cpu::concentration_2d(hostptr.C, hostptr.C0, hostptr.ksi);
+			stream_cpu::vorticity(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
+			stream_cpu::temperature_2d(hostptr.T, hostptr.T0, hostptr.ksi);
+			stream_cpu::concentration_2d(hostptr.C, hostptr.C0, hostptr.ksi);
 			//stream_cpu::temperature_2d_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			//stream_cpu::temperature_2d_flux(hostptr.T, hostptr.T0, hostptr.ksi);
 			//stream_cpu::concentration_2d_full(hostptr.C, hostptr.C0, hostptr.ksi);
-
-			stream_cpu::vorticity_Soret(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
-			stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
-			stream_cpu::concentration_2d_full_Soret(hostptr.C, hostptr.C0, hostptr.T0, hostptr.ksi);
+			
+			//stream_cpu::vorticity_Soret(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
+			//stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			//stream_cpu::concentration_2d_full_Soret(hostptr.C, hostptr.C0, hostptr.T0, hostptr.ksi);
 
 			stream_cpu::swap_three(hostptr.omega0, hostptr.omega, hostptr.T0, hostptr.T, hostptr.C0, hostptr.C);
+
 			cpuPoisson.solve(hostptr.ksi, hostptr.ksi0, hostptr.omega);
 		}
-		if (run.cpu_only == 2) //implicit
+		if (run.compute_mode == 2) //implicit
 		{
 			stream_cpu::transform_to_velocity(host, hostptr.ksi, hostptr.vx, hostptr.vy);
 
@@ -200,22 +189,32 @@ reset:
 
 
 		ftimer.end("calc");
-		
 		// OUTPUT
 		tr.trace_all(hostptr.vx, hostptr.vy, nullptr);
 		if (run.iter == 1 
-			|| (run.every_time(host.tau, 1.0)  && run.timeq < 1000) 
+			|| (run.every_time(host.tau, 1)  && run.timeq < 1000) 
 			|| (run.every_time(host.tau, 10.0) && run.timeq >= 1000))
 		{
-			if (!run.cpu_only) 	{
+			if (run.compute_mode == 0) 	{
 				cudaMemcpy(hostptr.T, devptr.T, host.Nbytes, cudaMemcpyDeviceToHost);
 				cudaMemcpy(hostptr.C, devptr.C, host.Nbytes, cudaMemcpyDeviceToHost);
 				cudaMemcpy(hostptr.ksi, devptr.ksi, host.Nbytes, cudaMemcpyDeviceToHost);
 				cudaMemcpy(hostptr.omega, devptr.omega, host.Nbytes, cudaMemcpyDeviceToHost);
 			}
 
-			Nu_y(host, hostptr.T, stat.NuTop, stat.NuDown, host.heatflux ? 1.0 : 0);
-			Nu_y(host, hostptr.C, stat.ShrTop, stat.ShrDown, host.heatflux ? 1.0 : 0);
+			//Nu_y(host, hostptr.T, stat.NuTop, stat.NuDown, host.heatflux ? 1.0 : 0);
+			//Nu_y(host, hostptr.C, stat.ShrTop, stat.ShrDown, host.heatflux ? 1.0 : 0);
+
+
+
+
+
+			make_full(host, hostptr.buffer, hostptr.T);
+			make_full(host, hostptr.buffer2, hostptr.C);
+			stream_cpu::transform_to_velocity(host, hostptr.ksi, hostptr.vx, hostptr.vy);
+			velocity_stats(host, hostptr.vx, hostptr.vy, stat);
+			Nu_y_for_fixed_flux(host, hostptr.buffer, stat.Nu);
+			Nu_y_for_fixed_flux(host, hostptr.buffer2, stat.Shr);
 
 			stat.ksi_max = absmax(hostptr.ksi, N);
 			stat.ksi_sum = sum_abs(hostptr.ksi, N);
@@ -223,24 +222,29 @@ reset:
 			stat.C_sum_signed = sum_signed(hostptr.C, N);
 			check_ksi.update();
 			check_omega.update();
+			check_ksi_max.update();
+			check_Vmax.update();
+			check_Ek.update();
 
-			make_full(host, hostptr.buffer, hostptr.T);
-			make_full(host, hostptr.buffer2, hostptr.C);
-			stream_cpu::transform_to_velocity(host, hostptr.ksi, hostptr.vx, hostptr.vy);
-			velocity_stats(host, hostptr.vx, hostptr.vy, stat);
+			stat.ksi_incr = check_ksi_max.ln_time; //check it
 
-			cout << endl << "Ra = " << host.Ra << ", t= " << run.timeq << ", " << run.iter << endl;
-			cout << "ksi= " << stat.ksi_max << ", Vmax= " << stat.Vmax << ", dC= " << hostptr.C[INDEX(host.nx / 2, host.ny, 0)] - hostptr.C[INDEX(host.nx / 2, 0, 0)] << ", Pe = " << stat.Pe << ", Csum = " << stat.C_sum_signed << ", T_fix = " << hostptr.T[INDEX(5, 5, 0)] << endl;
-			if (!run.note.empty()) cout << "note: " << run.note << endl;
 
-			if (run.iter == 1) w_temporal << "t, time(sec), time(sec)v2, max_ksi, omega_sum, ksi_point, T_point, C_point, Vmax, Ek, Csum, NuTop, NuDown, ShrTop, ShrDown, dC, dC1" << " Ra=" << host.Ra << endl;
+			//if (run.every_time(host.tau, 0.1))
+			{
+				cout << endl << "Ra = " << host.Ra << ", t= " << run.timeq << ", " << run.iter << endl;
+				cout << "ksi= " << stat.ksi_max << ", Vmax= " << stat.Vmax << ", dC= " << hostptr.C[INDEX(host.nx / 2, host.ny, 0)] - hostptr.C[INDEX(host.nx / 2, 0, 0)] << ", Pe = " << stat.Pe << ", Csum = " << stat.C_sum_signed << ", T_fix = " << hostptr.T[INDEX(5, 5, 0)] << endl;
+				if (!run.note.empty()) cout << "note: " << run.note << endl;
+			}
+
+			if (run.iter == 1) w_temporal << "t, time(sec), time(sec)v2, max_ksi, omega_sum, ksi_point, T_point, C_point, Vmax, Ek, Csum, dC, dC1, Nu, Shr, ksi_incr, check_Vmax, Ek_incr" << " Ra=" << host.Ra << endl;
 			w_temporal << run.timeq << " " << ftimer.update_and_get("main") << " " << ftimer.get("calc")
 				<< " " << stat.ksi_max << " " << stat.omega_sum << " " << hostptr.ksi[INDEX(10, 10, 0)] << " " << hostptr.T[INDEX(10, 10, 0)] << " " << hostptr.C[INDEX(10, 10, 0)]
 				<< " " << stat.Vmax << " " << stat.Ek
 				<< " " << stat.C_sum_signed 
-				<< " " << 0.5*(stat.NuTop + stat.NuDown) << " " << stat.NuDown << " " << 0.5*(stat.ShrTop + stat.ShrDown) << " " << stat.ShrDown
 				<< " " << hostptr.C[INDEX(host.nx / 2, host.ny, 0)] - hostptr.C[INDEX(host.nx / 2, 0, 0)]
 				<< " " << hostptr.C[INDEX(host.nx / 2, host.ny - 1, 0)] - hostptr.C[INDEX(host.nx / 2, 1, 0)]
+				<< " " << stat.Nu << " " << stat.Shr << " "
+				<< " " << check_ksi_max.ln_time << " " << check_Vmax.ln_time << " " << check_Ek.ln_time
 				<< endl;
 
 			tr.write(run.timeq);
@@ -252,7 +256,8 @@ reset:
 				if (check_ksi.ready_to_exit) run.stop_signal = 1;
 			}
 
-			if (run.every_time(host.tau, 20))
+			if ((run.every_time(host.tau, 20.0) && run.timeq < 1000)
+				|| (run.every_time(host.tau, 100.0) && run.timeq >= 1000))
 			{
 				write_fields2d(_path("fields"), _str(host.Ra) + " " + _str(run.timeq), host,
 					{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.buffer, hostptr.buffer2, hostptr.vx, hostptr.vy },
@@ -267,11 +272,11 @@ reset:
 
 		if (run.stop_signal > 0)
 		{
-			if (run.call_i == 0)	w_final << "Ra, ksi_max, ksi_max2, omega_sum, Vmax, Ek, C_sum, time(sec), t, NuTop, NuDown, ShrTop, ShrDown" << endl;
+			if (run.call_i == 0)	w_final << "Ra, ksi_max, ksi_max2, omega_sum, Vmax, Ek, C_sum, time(sec), t, Nu, Shr" << endl;
 
 			w_final << host.Ra << " " << stat.ksi_max << " " << pow(stat.ksi_max, 2) << " " << stat.omega_sum << " " << stat.Vmax << " " << stat.Ek << " " << stat.C_sum_signed
 				<< " " << ftimer.update_and_get("main") << " " << run.timeq
-				<< " " << 0.5*(stat.NuTop + stat.NuDown) << " " << stat.NuDown << " " << 0.5*(stat.ShrTop + stat.ShrDown) << " " << stat.ShrDown
+				<< " " << stat.Nu << " " << stat.Shr
 				<< endl;
 			backup.save(run.iter, run.timeq, run.call_i, host,	{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C },	"ksi, omega, T, C");
 			
