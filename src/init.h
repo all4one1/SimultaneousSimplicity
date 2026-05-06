@@ -18,6 +18,7 @@ void init_parameters(Configuration& c)
 	par.reading<int>(bc, "ybc", 0); c.ybc = static_cast<bc_type>(bc);
 
 	par.reading<unsigned int>(c.heatflux, "heatflux", 1);
+	par.reading<unsigned int>(c.full_fields, "full_fields", 1);
 
 	par.reading<double>(c.Ly, "Ly", 1.0);
 	par.reading<double>(c.Lx, "Lx", 1.0);
@@ -115,14 +116,17 @@ void init_fields(Configuration& c, Arrays& h, Arrays& d)
 				double x = c.hx * i;
 				h.ksi[q] = h.ksi0[q] = 0;
 				h.omega[q] = h.omega0[q] = 0;
-				h.C[q] = h.C0[q] = 0; // 1 - y;
-				h.T[q] = h.T0[q] = 0; // 1 - y;
+				//h.C[q] = h.C0[q] = y - 1;
+				//h.T[q] = h.T0[q] = y - 1;
 
 				//if (y > 0.5) h.C[q] += 0.5;
 				//else h.C[q] += -0.5;
 				//h.ksi[q] = (1e-6) * sin(2 * PI * x / c.Lx) * sin(PI * y);
-				h.C0[q] = h.C[q] = (1e-6) * sin(2 * PI * x / c.Lx) * (-y);
-				//h.C0[q] = h.C[q] = (1e-5) * sin(2 * PI * x / c.Lx) * (1 - y) * c.psi;
+				//h.C0[q] = h.C[q] = (1-y)  + (1e-6) * sin(2 * PI * x / c.Lx) * (1.0 - y);
+
+				//h.C[q] = h.C0[q] = (1 - y) * c.psi;
+				//h.T[q] = h.T0[q] = 1 - y;
+				h.C0[q] = h.C[q] = (1e-5) * sin(2 * PI * x / c.Lx) * (1 - y) * c.psi;
 			}
 		}
 	//}

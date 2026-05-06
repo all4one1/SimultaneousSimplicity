@@ -139,6 +139,81 @@ namespace stream_cuda
 
 	}
 
+	__global__ void vorticity_full(double* omega_new, double* omega, double* ksi, double* T, double* C)
+	{
+		unsigned int i = threadIdx.x + blockIdx.x * blockDim.x;
+		unsigned int j = threadIdx.y + blockIdx.y * blockDim.y;
+		unsigned int l = i + dev.offset * j;
+
+		auto InnerComputng = [&](unsigned int l)
+			{
+				return omega[l] + dev.tau * (
+					(dx1(l, ksi) * dy1(l, omega) - dy1(l, ksi) * dx1(l, omega)) //nonlinear term
+					+ (dx2(l, omega) + dy2(l, omega)) /** dev.Pr*/
+
+					+ dev.grav_y * dev.Ra / dev.Pr * (dx1(l, T))
+					- dev.grav_x * dev.Ra / dev.Pr * (dy1(l, T))
+
+					+ dev.grav_y * dev.Ra / dev.Pr * dev.K * (dx1(l, C))
+					- dev.grav_x * dev.Ra / dev.Pr * dev.K * (dy1(l, C))
+					);
+			};
+
+
+		if (i <= dev.nx && j <= dev.ny && l < dev.N)
+		{
+			/*	INNER	*/
+			if (i > 0 && i < dev.nx && j > 0 && j < dev.ny)
+			{
+				omega_new[l] = InnerComputng(l);
+			}
+			else
+			{
+				if (j == 0 && (i > 0 && i < dev.nx))
+				{
+					omega_new[l] = -0.5 / (dev.hy * dev.hy) * (8.0 * ksi[l + dev.offset] - ksi[l + dev.offset * 2]);
+					return;
+				}
+				else if (j == dev.ny && (i > 0 && i < dev.nx))
+				{
+					omega_new[l] = -0.5 / (dev.hy * dev.hy) * (8.0 * ksi[l - dev.offset] - ksi[l - dev.offset * 2]);
+					return;
+				}
+
+				if (dev.xbc == closed)
+				{
+					if (i == 0 && (j > 0 && j < dev.ny))
+						omega_new[l] = -0.5 / (dev.hx * dev.hx) * (8.0 * ksi[l + 1] - ksi[l + 2]);
+					if (i == dev.nx && (j > 0 && j < dev.ny))
+						omega_new[l] = -0.5 / (dev.hx * dev.hx) * (8.0 * ksi[l - 1] - ksi[l - 2]);
+					return;
+				}
+				else if (dev.xbc == periodic)
+				{
+					if (i == 0 && (j > 0 && j < dev.ny))
+					{
+						unsigned int ll = dev.nx - 1 + dev.offset * j;
+						omega_new[l] = InnerComputng(ll);
+						return;
+					}
+					if (i == dev.nx && (j > 0 && j < dev.ny))
+					{
+						unsigned int ll = 1 + dev.offset * j;
+						omega_new[l] = InnerComputng(ll);
+						return;
+					}
+				}
+				{
+					omega_new[l] = 0;
+					omega_new[l] = 0;
+				}
+
+			}
+		}
+
+	}
+
+
 	__global__ void make_velocity_from_stream(double* ksi, double* vx, double* vy)
 	{
 		unsigned int i = threadIdx.x + blockIdx.x * blockDim.x;

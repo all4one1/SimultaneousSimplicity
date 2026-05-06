@@ -27,7 +27,7 @@ struct Configuration
 	double Re, Pe, M, A, Ca, Gr;
 	double incr_parameter;
 	unsigned int dim, nx, ny, nz, N, offset, offset2, Nbytes;
-	unsigned int heatflux;
+	unsigned int heatflux, full_fields;
 	bc_type xbc, ybc, zbc;
 	domain_config domain;
 	discretization disc;
@@ -44,8 +44,10 @@ struct StatValues
 	double ksi_incr = 0;
 	double NuTop = 0, NuDown = 0, ShrTop = 0, ShrDown = 0;
 	double Nu = 0, Shr = 0;
+	double Nu2 = 0, Shr2 = 0;
 	double Vmax = 0, Vx = 0, Vy = 0, Ek = 0;
 	double Cu = 0, Pe = 0;
+	unsigned int n_vortex;
 };
 
 

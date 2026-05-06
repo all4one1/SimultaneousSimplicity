@@ -15,6 +15,7 @@ __global__ void swap_three(double* f_old, double* f_new, double* f2_old, double*
 namespace stream_cuda
 {
 	__global__ void vorticity(double* omega_new, double* omega, double* ksi, double* T, double* C);
+	__global__ void vorticity_full(double* omega_new, double* omega, double* ksi, double* T, double* C);
 	__global__ void make_velocity_from_stream(double* ksi, double* vx, double* vy);
 
 	__global__ void temperature_2d(double* T, double* T0, double* ksi);

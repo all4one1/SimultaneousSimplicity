@@ -36,10 +36,10 @@ namespace stream_cpu
         return  0.5 * (3.0 * f[l] - 4.0 * f[l - 1] + f[l - 2]) / host.hx;
     }
     double dy1_up(unsigned int l, double *f) {
-        return  -0.5 * (3.0 * f[l] - 4.0 * f[l + host.offset] + f[l + 2 * host.offset]) / host.hx;
+        return  -0.5 * (3.0 * f[l] - 4.0 * f[l + host.offset] + f[l + 2 * host.offset]) / host.hy;
     }
     double dy1_down(unsigned int l, double *f) {
-        return  0.5 * (3.0 * f[l] - 4.0 * f[l - host.offset] + f[l - 2 * host.offset]) / host.hx;
+        return  0.5 * (3.0 * f[l] - 4.0 * f[l - host.offset] + f[l - 2 * host.offset]) / host.hy;
     }
 
 
@@ -56,8 +56,8 @@ namespace stream_cpu
                 + host.grav_y * host.Ra / host.Pr * (dx1(l, T) - host.density_x)
                 - host.grav_x * host.Ra / host.Pr * (dy1(l, T) - host.density_y)
 
-                + host.grav_y * host.Ra / host.Pr * host.K * (dx1(l, C) - host.density_x)
-                - host.grav_x * host.Ra / host.Pr * host.K * (dy1(l, C) - host.density_y)
+                + host.grav_y * host.Rad / (host.Pr * host.Le) * (dx1(l, C) - host.density_x)
+                - host.grav_x * host.Rad / (host.Pr * host.Le) * (dy1(l, C) - host.density_y)
                 );
         };
 
@@ -108,6 +108,70 @@ namespace stream_cpu
             }
         }
     }
+
+    void vorticity_full(double* omega_new, double* omega, double* ksi, double* T, double* C)
+    {
+        auto InnerComputing = [&](unsigned int l) {
+            return omega[l] + host.tau * (
+                (dx1(l, ksi) * dy1(l, omega) - dy1(l, ksi) * dx1(l, omega)) //nonlinear term
+                + (dx2(l, omega) + dy2(l, omega)) /** host.Pr*/
+
+                + host.grav_y * host.Ra / host.Pr * (dx1(l, T))
+                - host.grav_x * host.Ra / host.Pr * (dy1(l, T))
+
+                + host.grav_y * host.Rad / (host.Pr * host.Le) * (dx1(l, C))
+                - host.grav_x * host.Rad / (host.Pr * host.Le) * (dy1(l, C))
+                );
+            };
+
+        for (unsigned int j = 0; j <= host.ny; ++j) {
+            for (unsigned int i = 0; i <= host.nx; ++i) {
+                unsigned int l = i + host.offset * j;
+
+                if (l < host.N) {
+                    /* INNER */
+                    if (i > 0 && i < host.nx && j > 0 && j < host.ny) {
+                        omega_new[l] = InnerComputing(l);
+                    }
+                    else {
+                        if (j == 0 && (i > 0 && i < host.nx)) {
+                            omega_new[l] = -0.5 / (host.hy * host.hy) * (8.0 * ksi[l + host.offset] - ksi[l + host.offset * 2]);
+                            continue;
+                        }
+                        else if (j == host.ny && (i > 0 && i < host.nx)) {
+                            omega_new[l] = -0.5 / (host.hy * host.hy) * (8.0 * ksi[l - host.offset] - ksi[l - host.offset * 2]);
+                            continue;
+                        }
+
+                        if (host.xbc == 0) { // closed
+                            if (i == 0 && (j > 0 && j < host.ny))
+                                omega_new[l] = -0.5 / (host.hx * host.hx) * (8.0 * ksi[l + 1] - ksi[l + 2]);
+                            if (i == host.nx && (j > 0 && j < host.ny))
+                                omega_new[l] = -0.5 / (host.hx * host.hx) * (8.0 * ksi[l - 1] - ksi[l - 2]);
+                            continue;
+                        }
+                        else if (host.xbc == 1) { // periodic
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                unsigned int ll = host.nx - 1 + host.offset * j;
+                                omega_new[l] = InnerComputing(ll);
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                unsigned int ll = 1 + host.offset * j;
+                                omega_new[l] = InnerComputing(ll);
+                                continue;
+                            }
+                        }
+                        {
+                            omega_new[l] = 0;
+                            omega_new[l] = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 
     void vorticity_Soret(double *omega_new, double *omega, double *ksi, double *T, double *C)
     {

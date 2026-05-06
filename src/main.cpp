@@ -46,7 +46,7 @@ int main(int argc, char** argv)
 	unsigned int &N = host.N;
 
 	Arrays hostptr, devptr;
-	CudaLaunchSetup launch(host.N, host.nx, host.ny, host.nz);
+	CudaLaunchSetup launch(host.N, host.nx, host.ny, host.nz); // Q: for FV and FD?
 	#define KERNEL1D launch.grid1d, launch.block1d
 	#define KERNEL2D launch.grid2d, launch.block2d
 	FuncTimer ftimer;
@@ -117,7 +117,7 @@ reset:
 	if (run.full_reset == 1 && run.iter == 0)  init_fields(host, hostptr, devptr);
 
 
-	Checker check_ksi(&stat.ksi_sum, &run.timeq, Checker::ExitType::Relative, "ksi", 1e-6);
+	Checker check_ksi(&stat.ksi_sum, &run.timeq, Checker::ExitType::Relative, "ksi", 1e-5);
 	Checker check_omega(&stat.omega_sum, &run.timeq, Checker::ExitType::Relative, "omega");
 	Checker check_C(&stat.C_sum, &run.timeq, Checker::ExitType::Relative, "C");
 
@@ -126,8 +126,8 @@ reset:
 	Checker check_Ek(&stat.Ek, &run.timeq, Checker::ExitType::NoExit, "check_Ek");
 	
 
-	if (host.Ra == 0) host.Ra += host.incr_parameter;
-	host.K = host.Rad / host.Ra / host.Le;
+	//if (host.Ra == 0) host.Ra += host.incr_parameter;
+	//host.K = host.Rad / host.Ra / host.Le;
 	cudaMemcpyToSymbol(dev, &host, sizeof(Configuration), 0, cudaMemcpyHostToDevice);
 	//check << <1, 1 >> > ();	cudaDeviceSynchronize(); //pause
 	
@@ -135,36 +135,42 @@ reset:
 
 	while (run.stop_signal == 0)
 	{
+		run.check_stop_by_click(1);
 		run.iter++;
 		run.timeq += host.tau;
-		if (run.timeq > run.timeq_limit) run.stop_signal = 2;
+		if (run.timeq > run.timeq_limit) run.stop_signal = 1;
 
 
 		ftimer.start("calc");
 
 		if (run.compute_mode == 0)	{
-			stream_cuda::vorticity << <KERNEL2D >> > (devptr.omega, devptr.omega0, devptr.ksi, devptr.T, devptr.C);
+			stream_cuda::vorticity_full << <KERNEL2D >> > (devptr.omega, devptr.omega0, devptr.ksi, devptr.T, devptr.C);
 			//stream_cuda::temperature_2d << <KERNEL2D >> > (devptr.T, devptr.T0, devptr.ksi);
 			//stream_cuda::temperature_2d_flux << <KERNEL2D >> > (devptr.T, devptr.T0, devptr.ksi);
 			//stream_cuda::concentration_2d << <KERNEL2D >> > (devptr.C, devptr.C0, devptr.ksi);
 			stream_cuda::temperature_2d_flux_full << <KERNEL2D >> > (devptr.T, devptr.T0, devptr.ksi);
-			//stream_cuda::concentration_2d_full << <KERNEL2D >> > (devptr.C, devptr.C0, devptr.ksi);
+			stream_cuda::concentration_2d_full << <KERNEL2D >> > (devptr.C, devptr.C0, devptr.ksi);
 			swap_three << < KERNEL1D >> > (devptr.omega0, devptr.omega, devptr.T0, devptr.T, devptr.C0, devptr.C);
 			poisson.solve();
 		}
 
 		if (run.compute_mode == 1) // explicit
 		{
-			stream_cpu::vorticity(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
-			stream_cpu::temperature_2d(hostptr.T, hostptr.T0, hostptr.ksi);
-			stream_cpu::concentration_2d(hostptr.C, hostptr.C0, hostptr.ksi);
-			//stream_cpu::temperature_2d_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			//stream_cpu::vorticity(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
 			//stream_cpu::temperature_2d_flux(hostptr.T, hostptr.T0, hostptr.ksi);
+			//stream_cpu::concentration_2d(hostptr.C, hostptr.C0, hostptr.ksi);
+
+			//stream_cpu::vorticity_full(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
+			//stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			//stream_cpu::concentration_2d_full(hostptr.C, hostptr.C0, hostptr.ksi);
+
+			//stream_cpu::temperature_2d_full(hostptr.T, hostptr.T0, hostptr.ksi);
 			//stream_cpu::concentration_2d_full(hostptr.C, hostptr.C0, hostptr.ksi);
 			
-			//stream_cpu::vorticity_Soret(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
-			//stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
-			//stream_cpu::concentration_2d_full_Soret(hostptr.C, hostptr.C0, hostptr.T0, hostptr.ksi);
+			stream_cpu::vorticity_Soret(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
+			stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			//stream_cpu::temperature_2d_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			stream_cpu::concentration_2d_full_Soret(hostptr.C, hostptr.C0, hostptr.T0, hostptr.ksi);
 
 			stream_cpu::swap_three(hostptr.omega0, hostptr.omega, hostptr.T0, hostptr.T, hostptr.C0, hostptr.C);
 
@@ -215,6 +221,11 @@ reset:
 			velocity_stats(host, hostptr.vx, hostptr.vy, stat);
 			Nu_y_for_fixed_flux(host, hostptr.buffer, stat.Nu);
 			Nu_y_for_fixed_flux(host, hostptr.buffer2, stat.Shr);
+			Nu_y_for_fixed_flux2(host, hostptr.buffer, hostptr.vy, host.Pr, stat.Nu2);
+			Nu_y_for_fixed_flux2(host, hostptr.buffer2, hostptr.vy, host.Sc, stat.Shr2);
+
+
+			stat.n_vortex = vortex_count(host.ny / 2, host, hostptr.ksi);
 
 			stat.ksi_max = absmax(hostptr.ksi, N);
 			stat.ksi_sum = sum_abs(hostptr.ksi, N);
@@ -232,19 +243,23 @@ reset:
 			//if (run.every_time(host.tau, 0.1))
 			{
 				cout << endl << "Ra = " << host.Ra << ", t= " << run.timeq << ", " << run.iter << endl;
-				cout << "ksi= " << stat.ksi_max << ", Vmax= " << stat.Vmax << ", dC= " << hostptr.C[INDEX(host.nx / 2, host.ny, 0)] - hostptr.C[INDEX(host.nx / 2, 0, 0)] << ", Pe = " << stat.Pe << ", Csum = " << stat.C_sum_signed << ", T_fix = " << hostptr.T[INDEX(5, 5, 0)] << endl;
+				cout << "ksi= " << stat.ksi_max << ", Vmax= " << stat.Vmax << ", dC= " << hostptr.buffer2[INDEX(host.nx / 2, host.ny, 0)] - hostptr.buffer2[INDEX(host.nx / 2, 0, 0)] << ", Pe = " << stat.Pe << ", Csum = " << stat.C_sum_signed << ", T_fix = " << hostptr.T[INDEX(5, 5, 0)] << endl;
 				if (!run.note.empty()) cout << "note: " << run.note << endl;
 			}
 
-			if (run.iter == 1) w_temporal << "t, time(sec), time(sec)v2, max_ksi, omega_sum, ksi_point, T_point, C_point, Vmax, Ek, Csum, dC, dC1, Nu, Shr, ksi_incr, check_Vmax, Ek_incr" << " Ra=" << host.Ra << endl;
+			if (run.iter == 1) w_temporal << "t, time(sec), time(sec)v2, max_ksi, omega_sum, ksi_point, T_point, C_point, Vmax, Ek, Csum, dC, dC1, Nu, Shr, Nu2, Shr2, Vxmax, Vymax, maxdif_T, maxdif_C, ksi_incr, check_Vmax, Ek_incr, N_vortex, " << " Ra=" << host.Ra << endl;
 			w_temporal << run.timeq << " " << ftimer.update_and_get("main") << " " << ftimer.get("calc")
 				<< " " << stat.ksi_max << " " << stat.omega_sum << " " << hostptr.ksi[INDEX(10, 10, 0)] << " " << hostptr.T[INDEX(10, 10, 0)] << " " << hostptr.C[INDEX(10, 10, 0)]
 				<< " " << stat.Vmax << " " << stat.Ek
 				<< " " << stat.C_sum_signed 
-				<< " " << hostptr.C[INDEX(host.nx / 2, host.ny, 0)] - hostptr.C[INDEX(host.nx / 2, 0, 0)]
-				<< " " << hostptr.C[INDEX(host.nx / 2, host.ny - 1, 0)] - hostptr.C[INDEX(host.nx / 2, 1, 0)]
+				<< " " << hostptr.buffer2[INDEX(host.nx / 2, host.ny, 0)] - hostptr.buffer2[INDEX(host.nx / 2, 0, 0)]
+				<< " " << hostptr.buffer2[INDEX(host.nx / 2, host.ny - 1, 0)] - hostptr.buffer2[INDEX(host.nx / 2, 1, 0)]
 				<< " " << stat.Nu << " " << stat.Shr << " "
+				<< " " << stat.Nu2 << " " << stat.Shr2 << " "
+				<< " " << stat.Vx << " " << stat.Vy << " "
+				<< " " << max_difference(host, hostptr.T) << " " << max_difference(host, hostptr.C) << " "
 				<< " " << check_ksi_max.ln_time << " " << check_Vmax.ln_time << " " << check_Ek.ln_time
+				<< " " << stat.n_vortex
 				<< endl;
 
 			tr.write(run.timeq);
@@ -263,7 +278,19 @@ reset:
 					{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.buffer, hostptr.buffer2, hostptr.vx, hostptr.vy },
 					"ksi, omega, T, C, Tfull, Cfull, vx, vy"
 				);
+
+
+				if (run.every_time(host.tau, 1))
+				{
+					write_x_line(host.ny / 2, _str(host.Ra) + " " + _path("lines"), _str(run.timeq), host,
+						{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.buffer, hostptr.buffer2, hostptr.vx, hostptr.vy },
+						"ksi, omega, T, C, Tfull, Cfull, vx, vy");
+				}
 			}
+
+
+
+
 			if (run.every_time(host.tau, 20))
 			{
 				backup.save(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C }, "ksi, omega, T, C");
@@ -272,11 +299,11 @@ reset:
 
 		if (run.stop_signal > 0)
 		{
-			if (run.call_i == 0)	w_final << "Ra, ksi_max, ksi_max2, omega_sum, Vmax, Ek, C_sum, time(sec), t, Nu, Shr" << endl;
+			if (run.call_i == 0)	w_final << "Ra, ksi_max, ksi_max2, omega_sum, Vmax, Ek, C_sum, time(sec), t, Nu, Shr, N_vortex" << endl;
 
 			w_final << host.Ra << " " << stat.ksi_max << " " << pow(stat.ksi_max, 2) << " " << stat.omega_sum << " " << stat.Vmax << " " << stat.Ek << " " << stat.C_sum_signed
 				<< " " << ftimer.update_and_get("main") << " " << run.timeq
-				<< " " << stat.Nu << " " << stat.Shr
+				<< " " << stat.Nu << " " << stat.Shr << " " << stat.n_vortex
 				<< endl;
 			backup.save(run.iter, run.timeq, run.call_i, host,	{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C },	"ksi, omega, T, C");
 			
@@ -297,6 +324,14 @@ reset:
 		{
 			break;
 		}
+
+		//if (run.every_time(host.tau, 1))
+		//{
+		//	write_x_line(host.ny / 2, _path("lines"), _str(run.timeq), host,
+		//		{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.buffer, hostptr.buffer2, hostptr.vx, hostptr.vy },
+		//		"ksi, omega, T, C, Tfull, Cfull, vx, vy");
+		//}
+
 	} cout << "run.stop: " << run.stop_signal << endl;
 
 	

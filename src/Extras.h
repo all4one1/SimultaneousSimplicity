@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <vector>
 #include <map>
+#include <conio.h> // Windows-specific
 #include "types_project.h"
 
 
@@ -23,7 +24,8 @@ using std::endl;
 
 struct RUN_STATE
 {
-	int stop_signal = 0, read_recovery = 0, compute_mode = 0;
+	std::atomic<int> stop_signal { 0 };
+	int read_recovery = 0, compute_mode = 0;
 	int call_i = 0, call_max = 1000, full_reset = 0;
 	double timeq = 0, time_sec = 0, timeq_limit = 10000, timeq_minimal = 0;
 	size_t iter = 0;
@@ -36,6 +38,20 @@ struct RUN_STATE
 		iter = 0;
 		timeq = 0;
 		stop_signal = 0;
+	}
+
+	void check_stop_by_click(int s)
+	{
+		if (_kbhit())
+		{
+			char key = _getch();
+			if (key == 's')
+			{
+				stop_signal = s;
+				std::cout << "SIGNAL: " << stop_signal << std::endl;
+			}
+
+		}
 	}
 };
 
@@ -239,8 +255,10 @@ public:
 			}
 		}
 	}
+	
 	double get(std::string s)
 	{
+		//get the time measured 
 		if (t1.find(s) == t1.end())
 		{
 			std::cout << s + " trigger not started" << std::endl;
@@ -251,9 +269,9 @@ public:
 			return timer[s];
 		}
 	}
-
 	double update_and_get(std::string s)
 	{
+		// update (apply end now) and get
 		if (t1.find(s) == t1.end())
 		{
 			std::cout << s + " trigger not started" << std::endl;
@@ -268,6 +286,7 @@ public:
 	}
 	double get_last_diff(std::string s)
 	{
+		//get the difference (dt) between last end and start: dt = end-start
 		if (t1.find(s) == t1.end())
 		{
 			std::cout << s + " trigger not started" << std::endl;
@@ -302,7 +321,6 @@ public:
 		std::ofstream file(path);
 		file << get_info() << std::endl;
 	}
-
 };
 
 
@@ -417,6 +435,7 @@ struct Checker
 
 	double estimate_finish(double eps = -1)
 	{
+		//nu takoe
 		update();
 		if (eps < 0) eps = eps_default;
 
@@ -480,7 +499,7 @@ void write_x_line(unsigned int j, std::string folder, std::string name, Configur
 	for (unsigned int i = 0; i <= c.nx; i++) 
 	{
 		unsigned int l = i + c.offset * j;
-		w << i * c.hx << " " << j * c.hy << " ";
+		w << i * c.hx << " ";
 		for (auto& it : v)
 		{
 			w << it[l] << " ";
@@ -488,6 +507,22 @@ void write_x_line(unsigned int j, std::string folder, std::string name, Configur
 		w << endl;
 	}
 }
+
+
+unsigned int vortex_count(unsigned int j,  Configuration& c, double *ksi)
+{
+	unsigned int count = 0;
+
+	for (unsigned int i = 1; i <= c.nx - 1; i++)
+	{
+		unsigned int l2 = i + c.offset * j;
+		unsigned int l1 = (i - 1) + c.offset * j;
+
+		if (ksi[l2] * ksi[l1] < 0) count++;
+	}
+	return count;
+}
+
 
 //std::string section_x_max(unsigned int j, Configuration &c, std::vector<double *> v)
 //{
@@ -685,7 +720,10 @@ void make_full(Configuration &c, double* full, double* add)
 			int l = i + c.offset * j;
 			double x = i * c.hx;
 			double y = j * c.hy;
-			full[l] = -c.grav_x * x - c.grav_y * y + add[l];
+
+			full[l] = add[l];
+			if (c.full_fields == 0) 
+				full[l] += -c.grav_x * x - c.grav_y * y;
 		}
 	}
 };
@@ -734,8 +772,58 @@ void Nu_y_for_fixed_flux(Configuration &c, double *f, double &Nu_) {
 	Nu_ = 1.0 / (s_bottom - s_top);
 }
 
+void Nu_y_for_fixed_flux2(Configuration& c, double* T, double* vy, double coef, double &Nu)
+{
+	Nu = 0;
 
+	auto dy1 = [&c](unsigned int l, double* f) {
+		return (f[l + c.offset] - f[l - c.offset]) / (2.0 * c.hy);
+		};
+	auto dy1_up = [&c](unsigned int l, double* f) {
+		return  -0.5 * (3.0 * f[l] - 4.0 * f[l + c.offset] + f[l + 2 * c.offset]) / c.hy;
+		};
+	auto dy1_down = [&c](unsigned int l, double* f) {
+		return  0.5 * (3.0 * f[l] - 4.0 * f[l - c.offset] + f[l - 2 * c.offset]) / c.hy;
+		};
 
+	double s_top = 0, s_bottom = 0;
+	double TW = 0;
+	double dTz = 0;
+	unsigned int l = 0;
+
+	unsigned int first = 1;
+	unsigned int last = c.nx - 1;
+	double A = c.hx * (last - first);
+
+	for (unsigned int j = 0; j <= c.ny; j++) {
+		for (unsigned int i = first; i <= last; i++) {
+			l = i + c.offset * j;
+
+			TW += vy[l] * T[l] * c.dV;
+
+			if (j == 0)			dTz += dy1_up(l, T) * c.dV;
+			else if (j == c.ny)	dTz += dy1_down(l, T) * c.dV;
+			else				dTz += dy1(l, T) * c.dV;
+		}
+	}
+	Nu = (-dTz / coef + TW) / (-dTz / coef);
+}
+
+double max_difference(Configuration& c, double* f) {
+	double max = 0;
+	unsigned int top, bot;
+
+	double s_top = 0, s_bottom = 0;
+	for (unsigned int i = 0; i <= c.nx; i++)
+	{
+		top = i + c.offset * (c.ny);
+		bot = i;
+
+		double d = abs(f[top] - f[bot]);
+		if (d > max) max = d;
+	}
+	return max;
+}
 
 
 struct Backup
