@@ -56,9 +56,9 @@ int main(int argc, char** argv)
 	std::ofstream w_final, w_temporal;
 
 	// for the stream function - vorticity method
-	allocate_host_arrays({ &hostptr.T, &hostptr.T0, &hostptr.C, &hostptr.C0, 
+	allocate_host_arrays({ &hostptr.T, &hostptr.T0, &hostptr.C, &hostptr.C0, &hostptr.C2, &hostptr.C20,
 		&hostptr.omega, &hostptr.omega0, &hostptr.ksi, &hostptr.ksi0, &hostptr.buffer, &hostptr.buffer2, &hostptr.vx, &hostptr.vy, &hostptr.rhs }, host.N);
-	allocate_device_arrays({ &devptr.T, &devptr.T0, &devptr.C, &devptr.C0,
+	allocate_device_arrays({ &devptr.T, &devptr.T0, &devptr.C, &devptr.C0, &devptr.C2, &devptr.C20,
 		& devptr.omega, & devptr.omega0, & devptr.ksi, & devptr.ksi0 }, host.N);
 	
 	CuPoisson stream_poisson;
@@ -72,12 +72,13 @@ int main(int argc, char** argv)
 
 	if (run.read_recovery)
 	{
-		int error = backup.read(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C }, run.read_recovery == 1);
+		int error = backup.read(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.C2 }, run.read_recovery == 1);
 
 		if (error == 0)
 		{
 			copyArrayFromHostToDevice({ devptr.T, devptr.T0 }, hostptr.T, host.N);
 			copyArrayFromHostToDevice({ devptr.C, devptr.C0 }, hostptr.C, host.N);
+			copyArrayFromHostToDevice({ devptr.C2, devptr.C20 }, hostptr.C2, host.N);
 			copyArrayFromHostToDevice({ devptr.ksi, devptr.ksi0 }, hostptr.ksi, host.N);
 			copyArrayFromHostToDevice({ devptr.omega, devptr.omega0 }, hostptr.omega, host.N);
 			if (run.compute_mode > 0)
@@ -88,6 +89,7 @@ int main(int argc, char** argv)
 					hostptr.omega0[l] = hostptr.omega[l];
 					hostptr.T0[l] = hostptr.T[l];
 					hostptr.C0[l] = hostptr.C[l];
+					hostptr.C20[l] = hostptr.C2[l];
 				}
 			}
 			auto open_type = run.read_recovery == 1 ? std::ofstream::app : std::ofstream::out;
@@ -167,12 +169,21 @@ reset:
 			//stream_cpu::temperature_2d_full(hostptr.T, hostptr.T0, hostptr.ksi);
 			//stream_cpu::concentration_2d_full(hostptr.C, hostptr.C0, hostptr.ksi);
 			
-			stream_cpu::vorticity_Soret(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
-			stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
-			//stream_cpu::temperature_2d_full(hostptr.T, hostptr.T0, hostptr.ksi);
-			stream_cpu::concentration_2d_full_Soret(hostptr.C, hostptr.C0, hostptr.T0, hostptr.ksi);
+			//stream_cpu::vorticity_Soret(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C);
+			//stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			////stream_cpu::temperature_2d_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			//stream_cpu::concentration_2d_full_Soret(hostptr.C, hostptr.C0, hostptr.T0, hostptr.ksi);
+			//stream_cpu::swap_three(hostptr.omega0, hostptr.omega, hostptr.T0, hostptr.T, hostptr.C0, hostptr.C);
 
-			stream_cpu::swap_three(hostptr.omega0, hostptr.omega, hostptr.T0, hostptr.T, hostptr.C0, hostptr.C);
+
+			stream_cpu::vorticity_Soret_ternary(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C, hostptr.C2);
+			stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			stream_cpu::concentration_2d_full_Soret(hostptr.C, hostptr.C0, hostptr.T0, hostptr.ksi, host.Sc, host.psi);
+			stream_cpu::concentration_2d_full_Soret(hostptr.C2, hostptr.C20, hostptr.T0, hostptr.ksi, host.Sc2, host.psi2);
+			stream_cpu::swap_four(hostptr.omega0, hostptr.omega, hostptr.T0, hostptr.T, hostptr.C0, hostptr.C, hostptr.C20, hostptr.C2);
+
+
+
 
 			cpuPoisson.solve(hostptr.ksi, hostptr.ksi0, hostptr.omega);
 		}
@@ -204,6 +215,7 @@ reset:
 			if (run.compute_mode == 0) 	{
 				cudaMemcpy(hostptr.T, devptr.T, host.Nbytes, cudaMemcpyDeviceToHost);
 				cudaMemcpy(hostptr.C, devptr.C, host.Nbytes, cudaMemcpyDeviceToHost);
+				cudaMemcpy(hostptr.C2, devptr.C2, host.Nbytes, cudaMemcpyDeviceToHost);
 				cudaMemcpy(hostptr.ksi, devptr.ksi, host.Nbytes, cudaMemcpyDeviceToHost);
 				cudaMemcpy(hostptr.omega, devptr.omega, host.Nbytes, cudaMemcpyDeviceToHost);
 			}
@@ -293,7 +305,7 @@ reset:
 
 			if (run.every_time(host.tau, 20))
 			{
-				backup.save(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C }, "ksi, omega, T, C");
+				backup.save(run.iter, run.timeq, run.call_i, host, { hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.C2 }, "ksi, omega, T, C, C2");
 			}
 		}
 
@@ -305,7 +317,7 @@ reset:
 				<< " " << ftimer.update_and_get("main") << " " << run.timeq
 				<< " " << stat.Nu << " " << stat.Shr << " " << stat.n_vortex
 				<< endl;
-			backup.save(run.iter, run.timeq, run.call_i, host,	{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C },	"ksi, omega, T, C");
+			backup.save(run.iter, run.timeq, run.call_i, host,	{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.C2 },	"ksi, omega, T, C, C2");
 			
 			write_fields2d(_path("final"), _str(host.Ra) + " " + _str(run.timeq), host,
 				{ hostptr.ksi, hostptr.omega, hostptr.T, hostptr.C, hostptr.buffer, hostptr.buffer2, hostptr.vx, hostptr.vy },

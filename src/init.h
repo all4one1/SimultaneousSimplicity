@@ -32,7 +32,9 @@ void init_parameters(Configuration& c)
 	par.reading<double>(c.Pr, "Pr", 10);
 	par.reading<double>(c.Le, "Le", 130);
 	par.reading<double>(c.Sc, "Sc", 1000);
+	par.reading<double>(c.Sc2, "Sc2", 1000);
 	par.reading<double>(c.psi, "psi", -0.2);
+	par.reading<double>(c.psi2, "psi2", 0.0);
 	par.reading<double>(c.K, "K", 0);
 	par.reading<double>(c.tau, "tau", 0.0001);
 	par.reading<double>(c.grav_y, "grav_y", 1.0);
@@ -127,11 +129,13 @@ void init_fields(Configuration& c, Arrays& h, Arrays& d)
 				//h.C[q] = h.C0[q] = (1 - y) * c.psi;
 				//h.T[q] = h.T0[q] = 1 - y;
 				h.C0[q] = h.C[q] = (1e-5) * sin(2 * PI * x / c.Lx) * (1 - y) * c.psi;
+				h.C20[q] = h.C2[q] = (1e-5) * sin(2 * PI * x / c.Lx) * (1 - y) * c.psi2;
 			}
 		}
 	//}
 
 	copyArrayFromHostToDevice({ d.C, d.C0 }, h.C, c.N);
+	copyArrayFromHostToDevice({ d.C2, d.C20 }, h.C2, c.N);
 	copyArrayFromHostToDevice({ d.T, d.T0 }, h.T, c.N);
 	copyArrayFromHostToDevice({ d.ksi, d.ksi0 }, h.ksi, c.N);
 }

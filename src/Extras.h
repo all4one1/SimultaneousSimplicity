@@ -786,7 +786,7 @@ void Nu_y_for_fixed_flux2(Configuration& c, double* T, double* vy, double coef, 
 		return  0.5 * (3.0 * f[l] - 4.0 * f[l - c.offset] + f[l - 2 * c.offset]) / c.hy;
 		};
 
-	double s_top = 0, s_bottom = 0;
+	//double s_top = 0, s_bottom = 0;
 	double TW = 0;
 	double dTz = 0;
 	unsigned int l = 0;
@@ -813,7 +813,7 @@ double max_difference(Configuration& c, double* f) {
 	double max = 0;
 	unsigned int top, bot;
 
-	double s_top = 0, s_bottom = 0;
+	//double s_top = 0, s_bottom = 0;
 	for (unsigned int i = 0; i <= c.nx; i++)
 	{
 		top = i + c.offset * (c.ny);

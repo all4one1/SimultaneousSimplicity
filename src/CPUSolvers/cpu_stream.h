@@ -235,6 +235,71 @@ namespace stream_cpu
             }
         }
     }
+    void vorticity_Soret_ternary(double* omega_new, double* omega, double* ksi, double* T, double* C, double *C2)
+    {
+        auto InnerComputing = [&](unsigned int l) {
+            return omega[l] + host.tau * (
+                (dx1(l, ksi) * dy1(l, omega) - dy1(l, ksi) * dx1(l, omega)) //nonlinear term
+                + (dx2(l, omega) + dy2(l, omega)) /** host.Pr*/
+
+                + host.grav_y * host.Ra / host.Pr * (dx1(l, T))
+                - host.grav_x * host.Ra / host.Pr * (dy1(l, T))
+
+                + host.grav_y * host.Ra / host.Pr * (dx1(l, C))
+                - host.grav_x * host.Ra / host.Pr * (dy1(l, C))
+
+                + host.grav_y * host.Ra / host.Pr * (dx1(l, C2))
+                - host.grav_x * host.Ra / host.Pr * (dy1(l, C2))
+                );
+            };
+
+        for (unsigned int j = 0; j <= host.ny; ++j) {
+            for (unsigned int i = 0; i <= host.nx; ++i) {
+                unsigned int l = i + host.offset * j;
+
+                if (l < host.N) {
+                    /* INNER */
+                    if (i > 0 && i < host.nx && j > 0 && j < host.ny) {
+                        omega_new[l] = InnerComputing(l);
+                    }
+                    else {
+                        if (j == 0 && (i > 0 && i < host.nx)) {
+                            omega_new[l] = -0.5 / (host.hy * host.hy) * (8.0 * ksi[l + host.offset] - ksi[l + host.offset * 2]);
+                            continue;
+                        }
+                        else if (j == host.ny && (i > 0 && i < host.nx)) {
+                            omega_new[l] = -0.5 / (host.hy * host.hy) * (8.0 * ksi[l - host.offset] - ksi[l - host.offset * 2]);
+                            continue;
+                        }
+
+                        if (host.xbc == 0) { // closed
+                            if (i == 0 && (j > 0 && j < host.ny))
+                                omega_new[l] = -0.5 / (host.hx * host.hx) * (8.0 * ksi[l + 1] - ksi[l + 2]);
+                            if (i == host.nx && (j > 0 && j < host.ny))
+                                omega_new[l] = -0.5 / (host.hx * host.hx) * (8.0 * ksi[l - 1] - ksi[l - 2]);
+                            continue;
+                        }
+                        else if (host.xbc == 1) { // periodic
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                unsigned int ll = host.nx - 1 + host.offset * j;
+                                omega_new[l] = InnerComputing(ll);
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                unsigned int ll = 1 + host.offset * j;
+                                omega_new[l] = InnerComputing(ll);
+                                continue;
+                            }
+                        }
+                        {
+                            omega_new[l] = 0;
+                            omega_new[l] = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
 
     void poisson_stream(double* ksi_new, double* ksi, double* omega)
@@ -740,6 +805,63 @@ namespace stream_cpu
         }
     }
 
+    void concentration_2d_full_Soret(double* C, double* C0, double* T0, double* ksi, double Sc, double psi)
+    {
+        for (unsigned int j = 0; j <= host.ny; ++j) {
+            for (unsigned int i = 0; i <= host.nx; ++i) {
+                unsigned int l = i + host.offset * j;
+
+                if (l < host.N) {
+                    /* INNER */
+                    if (i > 0 && i < host.nx && j > 0 && j < host.ny) {
+                        C[l] = C0[l]
+                            + host.tau * (
+                                -dy1(l, ksi) * dx1(l, C0) + dx1(l, ksi) * dy1(l, C0)
+                                + ((dx2(l, C0) + dy2(l, C0))
+                                    + (dx2(l, T0) + dy2(l, T0)) * psi) / Sc
+                                );
+                        continue;
+                    }
+                    else {
+                        if (j == 0) {
+                            C[l] = dy1_eq_0_up(l, C0) - psi * (dy1_up(l, T0) * host.hy * 2.0 / 3.0);
+                            continue;
+                        }
+                        else if (j == host.ny) {
+                            C[l] = dy1_eq_0_down(l, C0) + psi * (dy1_down(l, T0) * host.hy * 2.0 / 3.0);
+                            continue;
+                        }
+
+                        if (host.xbc == 0) { // closed
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                C[l] = dx1_eq_0_forward(l, C0) - psi * (dx1_forward(l, T0) * host.hx * 2.0 / 3.0);
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                C[l] = dx1_eq_0_back(l, C0) + psi * (dx1_back(l, T0) * host.hx * 2.0 / 3.0);
+                                continue;
+                            }
+                        }
+                        else if (host.xbc == 1) { // periodic
+                            if (i == 0 && (j > 0 && j < host.ny)) {
+                                unsigned int ll = host.nx - 1 + host.offset * j;
+                                C[l] = C0[ll];
+                                continue;
+                            }
+                            if (i == host.nx && (j > 0 && j < host.ny)) {
+                                unsigned int ll = 1 + host.offset * j;
+                                C[l] = C0[ll];
+                                continue;
+                            }
+                        }
+
+                        C[l] = 0;
+                    }
+                }
+            }
+        }
+    }
+
 
     void swap_one(double* f_old, double* f_new)
     {
@@ -756,6 +878,16 @@ namespace stream_cpu
             f_old[l] = f_new[l];
             f2_old[l] = f2_new[l];
             f3_old[l] = f3_new[l];
+        }
+    }
+    void swap_four(double* f_old, double* f_new, double* f2_old, double* f2_new, double* f3_old, double* f3_new, double* f4_old, double* f4_new)
+    {
+        for (unsigned int l = 0; l < host.N; l++)
+        {
+            f_old[l] = f_new[l];
+            f2_old[l] = f2_new[l];
+            f3_old[l] = f3_new[l];
+            f4_old[l] = f4_new[l];
         }
     }
 

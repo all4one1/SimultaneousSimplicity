@@ -23,7 +23,7 @@ struct Configuration
 	double vibr_x, vibr_y, vibr_z;
 	double grav_x, grav_y, grav_z;
 	double density_x, density_y, density_z;
-	double Sc, psi, Sc11, Sc12, Sc21, Sc22, psi1, psi2, psiS, Q, Ra, Rad, Rav, K, Pr, Le;
+	double Sc, psi, Sc11, Sc12, Sc21, Sc22, psi1, psi2, psiS, Sc2, Q, Ra, Rad, Rav, K, Pr, Le;
 	double Re, Pe, M, A, Ca, Gr;
 	double incr_parameter;
 	unsigned int dim, nx, ny, nz, N, offset, offset2, Nbytes;
