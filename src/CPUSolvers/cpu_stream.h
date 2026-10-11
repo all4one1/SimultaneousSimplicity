@@ -761,7 +761,7 @@ namespace stream_cpu
                             + host.tau * (
                                 -dy1(l, ksi) * dx1(l, C0) + dx1(l, ksi) * dy1(l, C0)
                                 + ((dx2(l, C0) + dy2(l, C0))
-                                + (dx2(l, T0) + dy2(l, T0)) * host.psi) / host.Sc
+                                - (dx2(l, T0) + dy2(l, T0)) * host.psi) / host.Sc
                                 );
                             continue;
                     }
@@ -818,7 +818,7 @@ namespace stream_cpu
                             + host.tau * (
                                 -dy1(l, ksi) * dx1(l, C0) + dx1(l, ksi) * dy1(l, C0)
                                 + ((dx2(l, C0) + dy2(l, C0))
-                                    + (dx2(l, T0) + dy2(l, T0)) * psi) / Sc
+                                    - (dx2(l, T0) + dy2(l, T0)) * psi) / Sc
                                 );
                         continue;
                     }

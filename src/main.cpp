@@ -177,9 +177,10 @@ reset:
 
 
 			stream_cpu::vorticity_Soret_ternary(hostptr.omega, hostptr.omega0, hostptr.ksi, hostptr.T, hostptr.C, hostptr.C2);
-			stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			//stream_cpu::temperature_2d_flux_full(hostptr.T, hostptr.T0, hostptr.ksi);
+			stream_cpu::temperature_2d_full(hostptr.T, hostptr.T0, hostptr.ksi);
 			stream_cpu::concentration_2d_full_Soret(hostptr.C, hostptr.C0, hostptr.T0, hostptr.ksi, host.Sc, host.psi);
-			stream_cpu::concentration_2d_full_Soret(hostptr.C2, hostptr.C20, hostptr.T0, hostptr.ksi, host.Sc2, host.psi2);
+			//stream_cpu::concentration_2d_full_Soret(hostptr.C2, hostptr.C20, hostptr.T0, hostptr.ksi, host.Sc2, host.psi2);
 			stream_cpu::swap_four(hostptr.omega0, hostptr.omega, hostptr.T0, hostptr.T, hostptr.C0, hostptr.C, hostptr.C20, hostptr.C2);
 
 
@@ -299,8 +300,6 @@ reset:
 						"ksi, omega, T, C, Tfull, Cfull, vx, vy");
 				}
 			}
-
-
 
 
 			if (run.every_time(host.tau, 20))
